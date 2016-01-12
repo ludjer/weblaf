@@ -43,7 +43,7 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 
 /**
- * User: mgarin Date: 17.08.11 Time: 23:06
+ * @author Mikle Garin
  */
 
 public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, BorderMethods
@@ -71,7 +71,7 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
     private PropertyChangeListener propertyChangeListener;
     private PropertyChangeListener componentOrientationListener;
 
-    @SuppressWarnings ("UnusedParameters")
+    @SuppressWarnings ( "UnusedParameters" )
     public static ComponentUI createUI ( final JComponent c )
     {
         return new WebToolBarUI ();
@@ -89,7 +89,7 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
 
         // Updating border and layout
         updateBorder ();
-        updateLayout ( toolBar );
+        updateLayout ( toolBar, true );
 
         // Border and layout update listeners
         ancestorListener = new AncestorAdapter ()
@@ -98,7 +98,7 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
             public void ancestorAdded ( final AncestorEvent event )
             {
                 updateBorder ();
-                updateLayout ( toolBar );
+                updateLayout ( toolBar, false );
             }
         };
         toolBar.addAncestorListener ( ancestorListener );
@@ -108,10 +108,11 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
             public void propertyChange ( final PropertyChangeEvent evt )
             {
                 updateBorder ();
-                updateLayout ( toolBar );
+                updateLayout ( toolBar, false );
             }
         };
         toolBar.addPropertyChangeListener ( WebLookAndFeel.TOOLBAR_FLOATABLE_PROPERTY, propertyChangeListener );
+        toolBar.addPropertyChangeListener ( WebLookAndFeel.TOOLBAR_ORIENTATION_PROPERTY, propertyChangeListener );
         componentOrientationListener = new PropertyChangeListener ()
         {
             @Override
@@ -128,7 +129,8 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
     {
         PainterSupport.uninstallPainter ( toolBar, this.painter );
 
-        c.removeAncestorListener ( ancestorListener );
+        c.removeAncestorListener(ancestorListener);
+        c.removePropertyChangeListener ( WebLookAndFeel.TOOLBAR_ORIENTATION_PROPERTY, propertyChangeListener );
         c.removePropertyChangeListener ( WebLookAndFeel.TOOLBAR_FLOATABLE_PROPERTY, propertyChangeListener );
         c.removePropertyChangeListener ( WebLookAndFeel.ORIENTATION_PROPERTY, componentOrientationListener );
 
@@ -289,7 +291,7 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
     public void setSpacing ( final int spacing )
     {
         this.spacing = spacing;
-        updateLayout ( toolBar );
+        updateLayout ( toolBar, false );
     }
 
     /**
@@ -333,8 +335,7 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
                                 margin.left + 1 + shadeWidth +
                                         ( horizontal && ltr ? gripperSpacing : 0 ), margin.bottom + 1 + shadeWidth,
                                 margin.right + 1 + shadeWidth +
-                                        ( horizontal && !ltr ? gripperSpacing : 0 )
-                        ) );
+                                        ( horizontal && !ltr ? gripperSpacing : 0 ) ) );
                     }
                 }
                 else
@@ -351,8 +352,7 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
                                 margin.left + ( horizontal && ltr ? gripperSpacing : 0 ) +
                                         ( !horizontal && !ltr ? 1 : 0 ), margin.bottom + ( horizontal ? 1 : 0 ),
                                 margin.right + ( horizontal && !ltr ? gripperSpacing : 0 ) +
-                                        ( !horizontal && ltr ? 1 : 0 )
-                        ) );
+                                        ( !horizontal && ltr ? 1 : 0 ) ) );
                     }
                 }
             }
@@ -364,10 +364,16 @@ public class WebToolBarUI extends BasicToolBarUI implements ShapeProvider, Borde
         }
     }
 
-    private void updateLayout ( final JComponent c )
+    private void updateLayout ( final JComponent c, final boolean install )
     {
+        final boolean installed = c.getLayout () instanceof ToolbarLayout;
+        if ( !install && !installed )
+        {
+            return;
+        }
+
         final ToolbarLayout layout = new ToolbarLayout ( spacing, toolBar.getOrientation () );
-        if ( c.getLayout () instanceof ToolbarLayout )
+        if ( installed )
         {
             final ToolbarLayout old = ( ToolbarLayout ) c.getLayout ();
             layout.setConstraints ( old.getConstraints () );

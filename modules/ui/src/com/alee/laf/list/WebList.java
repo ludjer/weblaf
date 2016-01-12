@@ -23,6 +23,7 @@ import com.alee.laf.list.editor.ListCellEditor;
 import com.alee.laf.list.editor.ListEditListener;
 import com.alee.managers.hotkey.HotkeyData;
 import com.alee.managers.log.Log;
+import com.alee.managers.tooltip.ToolTipProvider;
 import com.alee.utils.*;
 import com.alee.utils.swing.*;
 
@@ -50,6 +51,10 @@ import java.util.Vector;
 public class WebList extends JList implements EventMethods, FontMethods<WebList>, SizeMethods<WebList>
 {
     /**
+     * todo 1. Generics usage when migrated to JDK8+
+     */
+
+    /**
      * List edit lsiteners.
      */
     protected List<ListEditListener> editListeners = new ArrayList<ListEditListener> ( 1 );
@@ -63,6 +68,11 @@ public class WebList extends JList implements EventMethods, FontMethods<WebList>
      * List cell editor.
      */
     protected ListCellEditor listCellEditor = null;
+
+    /**
+     * Custom WebLaF tooltip provider.
+     */
+    protected ToolTipProvider<? extends WebList> toolTipProvider = null;
 
     /**
      * Currently edited cell index or -1 if none edited at the moment.
@@ -360,6 +370,26 @@ public class WebList extends JList implements EventMethods, FontMethods<WebList>
     }
 
     /**
+     * Returns custom WebLaF tooltip provider.
+     *
+     * @return custom WebLaF tooltip provider
+     */
+    public ToolTipProvider<? extends WebList> getToolTipProvider ()
+    {
+        return toolTipProvider;
+    }
+
+    /**
+     * Sets custom WebLaF tooltip provider.
+     *
+     * @param provider custom WebLaF tooltip provider
+     */
+    public void setToolTipProvider ( final ToolTipProvider<? extends WebList> provider )
+    {
+        this.toolTipProvider = provider;
+    }
+
+    /**
      * Returns whether list allows an empty selection or not.
      *
      * @return true if list allows an empty selection, false otherwise
@@ -523,6 +553,70 @@ public class WebList extends JList implements EventMethods, FontMethods<WebList>
     public void setSelectionShadeWidth ( final int selectionShadeWidth )
     {
         getWebUI ().setSelectionShadeWidth ( selectionShadeWidth );
+    }
+
+    /**
+     * Returns whether selection should be web-colored or not.
+     * In case it is not web-colored selectionBackgroundColor value will be used as background color.
+     *
+     * @return true if selection should be web-colored, false otherwise
+     */
+    public boolean isWebColoredSelection ()
+    {
+        return getWebUI ().isWebColoredSelection ();
+    }
+
+    /**
+     * Sets whether selection should be web-colored or not.
+     * In case it is not web-colored selectionBackgroundColor value will be used as background color.
+     *
+     * @param webColored whether selection should be web-colored or not
+     */
+    public void setWebColoredSelection ( final boolean webColored )
+    {
+        getWebUI ().setWebColoredSelection ( webColored );
+    }
+
+    /**
+     * Returns selection border color.
+     *
+     * @return selection border color
+     */
+    public Color getSelectionBorderColor ()
+    {
+        return getWebUI ().getSelectionBorderColor ();
+    }
+
+    /**
+     * Sets selection border color.
+     *
+     * @param color selection border color
+     */
+    public void setSelectionBorderColor ( final Color color )
+    {
+        getWebUI ().setSelectionBorderColor ( color );
+    }
+
+    /**
+     * Returns selection background color.
+     * It is used only when webColoredSelection is set to false.
+     *
+     * @return selection background color
+     */
+    public Color getSelectionBackgroundColor ()
+    {
+        return getWebUI ().getSelectionBackgroundColor ();
+    }
+
+    /**
+     * Sets selection background color.
+     * It is used only when webColoredSelection is set to false.
+     *
+     * @param color selection background color
+     */
+    public void setSelectionBackgroundColor ( final Color color )
+    {
+        getWebUI ().setSelectionBackgroundColor ( color );
     }
 
     /**
@@ -1142,5 +1236,14 @@ public class WebList extends JList implements EventMethods, FontMethods<WebList>
     public Dimension getPreferredSize ()
     {
         return SizeUtils.getPreferredSize ( this, super.getPreferredSize () );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public WebList setPreferredSize ( final int width, final int height )
+    {
+        return SizeUtils.setPreferredSize ( this, width, height );
     }
 }

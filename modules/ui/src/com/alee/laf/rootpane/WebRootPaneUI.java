@@ -117,7 +117,7 @@ public class WebRootPaneUI extends BasicRootPaneUI implements SwingConstants
      * @param c component that will use UI instance
      * @return instance of the WebRootPaneUI
      */
-    @SuppressWarnings ( "UnusedParameters" )
+    @SuppressWarnings ("UnusedParameters")
     public static ComponentUI createUI ( final JComponent c )
     {
         return new WebRootPaneUI ();
@@ -537,11 +537,7 @@ public class WebRootPaneUI extends BasicRootPaneUI implements SwingConstants
 
     protected void installProperties ()
     {
-        if ( isFrame () )
-        {
-            // Maximum frame size
-            frame.setMaximizedBounds ( GraphicsEnvironment.getLocalGraphicsEnvironment ().getMaximumWindowBounds () );
-        }
+        //
     }
 
     protected void uninstallProperties ()
@@ -1063,6 +1059,13 @@ public class WebRootPaneUI extends BasicRootPaneUI implements SwingConstants
     {
         if ( frame != null )
         {
+            // Retrieving screen device configuration
+            final GraphicsConfiguration gc = frame.getGraphicsConfiguration ().getDevice ().getDefaultConfiguration ();
+
+            // Updating maximized bounds for the frame
+            frame.setMaximizedBounds ( SystemUtils.getMaxWindowBounds ( gc, true ) );
+
+            // Forcing window to go into maximized state
             frame.setExtendedState ( Frame.MAXIMIZED_BOTH );
         }
     }

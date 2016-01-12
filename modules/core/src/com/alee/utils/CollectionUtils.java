@@ -17,6 +17,7 @@
 
 package com.alee.utils;
 
+import com.alee.utils.collection.IndexedSupplier;
 import com.alee.utils.compare.Filter;
 import com.alee.utils.text.TextProvider;
 
@@ -30,6 +31,31 @@ import java.util.*;
 
 public final class CollectionUtils
 {
+    /**
+     * Returns whether specified collection is empty or not.
+     *
+     * @param collection collection to process
+     * @return true if specified collection is empty, false otherwise
+     */
+    public static boolean isEmpty ( final Collection collection )
+    {
+        return collection == null || collection.isEmpty ();
+    }
+
+    /**
+     * Returns list with limited amount of objects from the initial list.
+     * Only specified amount of first objects in initial list will be transferred to new list.
+     *
+     * @param list  initial list
+     * @param limit objects amount limitation
+     * @param <T>   object type
+     * @return list with limited amount of objects from the initial list
+     */
+    public static <T> List<T> limit ( final List<T> list, final int limit )
+    {
+        return list.size () <= limit ? list : copySubList ( list, 0, limit );
+    }
+
     /**
      * Returns sub list with copied values.
      *
@@ -78,7 +104,24 @@ public final class CollectionUtils
     }
 
     /**
-     * Adds all objects into specified list.
+     * Returns data converted into list.
+     *
+     * @param data data
+     * @param <T>  data type
+     * @return data list
+     */
+    public static <T> ArrayList<T> asList ( final Iterator<T> data )
+    {
+        final ArrayList<T> list = new ArrayList<T> ();
+        while ( data.hasNext () )
+        {
+            list.add ( data.next () );
+        }
+        return list;
+    }
+
+    /**
+     * Adds all objects into the specified list.
      *
      * @param collection list to fill
      * @param objects    objects
@@ -90,7 +133,91 @@ public final class CollectionUtils
         boolean result = false;
         for ( final T object : objects )
         {
-            result |= collection.add ( object );
+            if ( !collection.contains ( object ) )
+            {
+                result |= collection.add ( object );
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Adds all non-null objects into the specified list.
+     *
+     * @param collection list to fill
+     * @param objects    objects
+     * @param <T>        objects type
+     * @return true if list changed as the result of this operation, false otherwise
+     */
+    public static <T> boolean addAllNonNull ( final Collection<T> collection, final T... objects )
+    {
+        boolean result = false;
+        for ( final T object : objects )
+        {
+            if ( !collection.contains ( object ) && object != null )
+            {
+                result |= collection.add ( object );
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Adds all objects into the specified list.
+     *
+     * @param collection list to fill
+     * @param objects    objects
+     * @param <T>        objects type
+     * @return true if list changed as the result of this operation, false otherwise
+     */
+    public static <T> boolean addAll ( final Collection<T> collection, final Collection<T> objects )
+    {
+        boolean result = false;
+        for ( final T object : objects )
+        {
+            if ( !collection.contains ( object ) )
+            {
+                result |= collection.add ( object );
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Adds all non-null objects into the specified list.
+     *
+     * @param collection list to fill
+     * @param objects    objects
+     * @param <T>        objects type
+     * @return true if list changed as the result of this operation, false otherwise
+     */
+    public static <T> boolean addAllNonNull ( final Collection<T> collection, final Collection<T> objects )
+    {
+        boolean result = false;
+        for ( final T object : objects )
+        {
+            if ( !collection.contains ( object ) && object != null )
+            {
+                result |= collection.add ( object );
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Removes all objects from the specified list.
+     *
+     * @param collection list to fill
+     * @param objects    objects
+     * @param <T>        objects type
+     * @return true if list changed as the result of this operation, false otherwise
+     */
+    public static <T> boolean removeAll ( final Collection<T> collection, final T... objects )
+    {
+        boolean result = false;
+        for ( final T object : objects )
+        {
+            result |= collection.remove ( object );
         }
         return result;
     }
@@ -113,11 +240,11 @@ public final class CollectionUtils
     }
 
     /**
-     * Returns clone of the specified list.
+     * Returns clone of the specified collection.
      * Note that this method will clone all values into new list.
      *
-     * @param collection list to clone
-     * @param <T>        list type
+     * @param collection collection to clone
+     * @param <T>        collection objects type
      * @return clone of the specified list
      */
     public static <T extends Cloneable> ArrayList<T> clone ( final Collection<T> collection )
@@ -146,6 +273,38 @@ public final class CollectionUtils
         final ArrayList<T> list = new ArrayList<T> ( data.length );
         Collections.addAll ( list, data );
         return list;
+    }
+
+    /**
+     * Returns collection with clonable values being cloned and non-clonable values simply copied from source collection.
+     *
+     * @param collection collection to perform action for
+     * @param <T>        collection objects type
+     * @return collection with clonable values being cloned and non-clonable values simply copied from source collection
+     */
+    public static <T> ArrayList<T> cloneOrCopy ( final Collection<T> collection )
+    {
+        if ( collection == null )
+        {
+            return null;
+        }
+        final ArrayList<T> cloned = new ArrayList<T> ( collection.size () );
+        for ( final T value : collection )
+        {
+            if ( value instanceof Collection )
+            {
+                cloned.add ( ( T ) cloneOrCopy ( ( Collection ) value ) );
+            }
+            else if ( value instanceof Cloneable )
+            {
+                cloned.add ( ( T ) ReflectUtils.cloneSafely ( ( Cloneable ) value ) );
+            }
+            else
+            {
+                cloned.add ( value );
+            }
+        }
+        return cloned;
     }
 
     /**
@@ -340,5 +499,23 @@ public final class CollectionUtils
             }
         }
         return summary;
+    }
+
+    /**
+     * Fills and returns list with data provided by supplier interface implementation.
+     *
+     * @param amount   amount of list elements
+     * @param supplier data provider
+     * @param <T>      data type
+     * @return list filled with data provided by supplier interface implementation
+     */
+    public static <T> List<T> fillList ( final int amount, final IndexedSupplier<T> supplier )
+    {
+        final List<T> list = new ArrayList<T> ( amount );
+        for ( int i = 0; i < amount; i++ )
+        {
+            list.add ( supplier.get ( i ) );
+        }
+        return list;
     }
 }

@@ -36,6 +36,8 @@ import java.util.*;
  *
  * @param <E> custom node type
  * @author Mikle Garin
+ * @see com.alee.extended.tree.WebAsyncTree
+ * @see com.alee.extended.tree.AsyncTreeDataProvider
  */
 
 public class AsyncTreeModel<E extends AsyncUniqueNode> extends WebTreeModel<E>
@@ -304,15 +306,12 @@ public class AsyncTreeModel<E extends AsyncUniqueNode> extends WebTreeModel<E>
             nodeCached.remove ( node.getId () );
 
             // Clears node raw childs cache
-            final List<E> childs = rawNodeChildsCache.remove ( node.getId () );
+            final List<E> children = rawNodeChildsCache.remove ( node.getId () );
 
             // Clears chld nodes cache
-            if ( childs != null )
+            if ( children != null )
             {
-                for ( final E child : childs )
-                {
-                    clearNodeChildsCache ( child, true );
-                }
+                clearNodeChildsCache ( children, true );
             }
         }
     }
@@ -390,6 +389,10 @@ public class AsyncTreeModel<E extends AsyncUniqueNode> extends WebTreeModel<E>
      */
     protected int loadChildsCount ( final E parent )
     {
+        // todo Use when moved to JDK8
+        // final SecondaryLoop loop = Toolkit.getDefaultToolkit ().getSystemEventQueue ().createSecondaryLoop ();
+        // loop.enter/exit
+
         // Checking if the node is busy already
         synchronized ( busyLock )
         {
@@ -407,6 +410,7 @@ public class AsyncTreeModel<E extends AsyncUniqueNode> extends WebTreeModel<E>
         // Firing load started event
         fireChildsLoadStarted ( parent );
 
+        // todo This should actually be called on node reload?
         // Removing all old childs if such exist
         final int childCount = parent.getChildCount ();
         if ( childCount > 0 )
@@ -726,6 +730,9 @@ public class AsyncTreeModel<E extends AsyncUniqueNode> extends WebTreeModel<E>
         // Clearing node cache
         clearNodeChildsCache ( childNode, true );
 
+        // Removing node childs so they won't mess up anything when we place node back into tree
+        childNode.removeAllChildren ();
+
         // Removing node from parent
         super.removeNodeFromParent ( node );
 
@@ -772,7 +779,7 @@ public class AsyncTreeModel<E extends AsyncUniqueNode> extends WebTreeModel<E>
                 childs = new ArrayList<E> ( 1 );
                 rawNodeChildsCache.put ( parentNode.getId (), childs );
             }
-            childs.add ( childNode );
+            childs.add ( index, childNode );
             cacheNodeById ( childNode );
         }
 

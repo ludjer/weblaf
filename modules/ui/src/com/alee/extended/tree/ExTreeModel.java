@@ -33,6 +33,8 @@ import java.util.*;
 
 /**
  * @author Mikle Garin
+ * @see com.alee.extended.tree.WebExTree
+ * @see com.alee.extended.tree.ExTreeDataProvider
  */
 
 public class ExTreeModel<E extends UniqueNode> extends WebTreeModel<E>
@@ -88,6 +90,7 @@ public class ExTreeModel<E extends UniqueNode> extends WebTreeModel<E>
         super ( null );
         this.tree = tree;
         this.dataProvider = dataProvider;
+        loadTreeData ( getRootNode () );
     }
 
     /**
@@ -184,6 +187,20 @@ public class ExTreeModel<E extends UniqueNode> extends WebTreeModel<E>
     }
 
     /**
+     * Forces model to cache the whole structure so any node can be accessed right away.
+     * Note that this might take some time in case tree structure is large.
+     * Though this doesn't force any repaints or other visual updates, so the speed depends only on ExTreeDataProvider.
+     */
+    protected void loadTreeData ( final E node )
+    {
+        final int childCount = getChildCount ( node );
+        for ( int i = 0; i < childCount; i++ )
+        {
+            loadTreeData ( getChild ( node, i ) );
+        }
+    }
+
+    /**
      * Reloads node childs.
      *
      * @param node node
@@ -191,14 +208,23 @@ public class ExTreeModel<E extends UniqueNode> extends WebTreeModel<E>
     @Override
     public void reload ( final TreeNode node )
     {
+        final E reloadedNode = ( E ) node;
+
         // Cancels tree editing
         tree.cancelEditing ();
 
         // Cleaning up nodes cache
-        clearNodeChildsCache ( ( E ) node, false );
+        clearNodeChildsCache ( reloadedNode, false );
+
+        // Removing all old childs if such exist
+        // We don't need to inform about child nodes removal here due to later structural update call
+        reloadedNode.removeAllChildren ();
 
         // Forcing childs reload
-        super.reload ( node );
+        super.reload ( reloadedNode );
+
+        // Forcing structure reload
+        loadTreeData ( reloadedNode );
     }
 
     /**
@@ -221,15 +247,12 @@ public class ExTreeModel<E extends UniqueNode> extends WebTreeModel<E>
             nodeCached.remove ( node.getId () );
 
             // Clears node raw childs cache
-            final List<E> childs = rawNodeChildsCache.remove ( node.getId () );
+            final List<E> children = rawNodeChildsCache.remove ( node.getId () );
 
             // Clears chld nodes cache
-            if ( childs != null )
+            if ( children != null )
             {
-                for ( final E child : childs )
-                {
-                    clearNodeChildsCache ( child, true );
-                }
+                clearNodeChildsCache ( children, true );
             }
         }
     }
@@ -451,6 +474,9 @@ public class ExTreeModel<E extends UniqueNode> extends WebTreeModel<E>
         // Clearing node cache
         clearNodeChildsCache ( childNode, true );
 
+        // Removing node childs so they won't mess up anything when we place node back into tree
+        childNode.removeAllChildren ();
+
         // Removing node from parent
         super.removeNodeFromParent ( node );
 
@@ -491,7 +517,7 @@ public class ExTreeModel<E extends UniqueNode> extends WebTreeModel<E>
                 childs = new ArrayList<E> ( 1 );
                 rawNodeChildsCache.put ( parentNode.getId (), childs );
             }
-            childs.add ( childNode );
+            childs.add ( index, childNode );
             cacheNodeById ( childNode );
         }
 

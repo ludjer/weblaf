@@ -15,26 +15,19 @@
  * along with WebLookAndFeel library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.alee.managers.language.updaters;
-
-import com.alee.managers.language.data.Value;
-
-import java.awt.*;
+package com.alee.utils.collection;
 
 /**
- * This class provides language default updates for Dialog component.
- *
  * @author Mikle Garin
  */
 
-public class DialogLU extends DefaultLanguageUpdater<Dialog>
+public interface IndexedSupplier<T>
 {
     /**
-     * {@inheritDoc}
+     * Returns a result.
+     *
+     * @param index object index
+     * @return a result
      */
-    @Override
-    public void update ( final Dialog c, final String key, final Value value, final Object... data )
-    {
-        c.setTitle ( getDefaultText ( value, data ) );
-    }
+    public T get ( int index );
 }

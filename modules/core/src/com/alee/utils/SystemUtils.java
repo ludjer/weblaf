@@ -321,7 +321,7 @@ public final class SystemUtils
      *
      * @return true if current OS is windows, false otherwise
      */
-    @SuppressWarnings ("StringEquality")
+    @SuppressWarnings ( "StringEquality" )
     public static boolean isWindows ()
     {
         return shortOsName == WINDOWS;
@@ -332,7 +332,7 @@ public final class SystemUtils
      *
      * @return true if current OS is mac, false otherwise
      */
-    @SuppressWarnings ("StringEquality")
+    @SuppressWarnings ( "StringEquality" )
     public static boolean isMac ()
     {
         return shortOsName == MAC;
@@ -380,6 +380,11 @@ public final class SystemUtils
         return osName;
     }
 
+    /**
+     * Returns OS vendor site address.
+     *
+     * @return OS vendor site address
+     */
     public static String getOsSite ()
     {
         if ( isWindows () )
@@ -526,6 +531,74 @@ public final class SystemUtils
         return devices;
     }
 
+    /**
+     * Returns maximum window bounds for the specified graphics configuration.
+     *
+     * @param gc                graphics configuration
+     * @param applyScreenInsets whether or not should extract screen insets from max bounds
+     * @return maximum window bounds for the specified graphics configuration
+     */
+    public static Rectangle getMaxWindowBounds ( final GraphicsConfiguration gc, final boolean applyScreenInsets )
+    {
+        if ( gc != null )
+        {
+            // Note that we don't have to specify x/y offset of the screen here
+            // It seems that maximized bounds require only bounds inside of the screen bounds, not bettween the screens overall
+            final Rectangle b = gc.getBounds ();
+            if ( applyScreenInsets )
+            {
+                // Taking screen insets into account
+                final Insets si = Toolkit.getDefaultToolkit ().getScreenInsets ( gc );
+                return new Rectangle ( si.left, si.top, b.width - si.left - si.right, b.height - si.top - si.bottom );
+            }
+            else
+            {
+                // Using full screen
+                return new Rectangle ( 0, 0, b.width, b.height );
+            }
+        }
+        else
+        {
+            // Default GE bounds
+            return GraphicsEnvironment.getLocalGraphicsEnvironment ().getMaximumWindowBounds ();
+        }
+    }
+
+    /**
+     * Returns graphics device where most part of specified bounds is placed.
+     *
+     * @param bounds bounds to find graphics device for
+     * @return graphics device where most part of specified bounds is placed
+     */
+    public static GraphicsDevice getGraphicsDevice ( final Rectangle bounds )
+    {
+        // Determining screen on which most part of our bounds is placed
+        int maxArea = 0;
+        GraphicsDevice device = null;
+        for ( final GraphicsDevice gd : getGraphicsDevices () )
+        {
+            final GraphicsConfiguration gc = gd.getDefaultConfiguration ();
+            final Rectangle sb = gc.getBounds ();
+            if ( bounds.intersects ( sb ) )
+            {
+                // This part of code will check intersection between our bounds and screen bounds
+                final Rectangle intersection = bounds.intersection ( sb );
+                final int s = intersection.width * intersection.height;
+                if ( maxArea < s )
+                {
+                    maxArea = s;
+                    device = gd;
+                }
+            }
+        }
+        return device != null ? device : GraphicsEnvironment.getLocalGraphicsEnvironment ().getDefaultScreenDevice ();
+    }
+
+    /**
+     * Returns fully transparent cursor.
+     *
+     * @return fully transparent cursor
+     */
     public static Cursor getTransparentCursor ()
     {
         if ( transparentCursor == null )

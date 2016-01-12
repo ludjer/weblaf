@@ -52,9 +52,29 @@ public final class WebComboBoxStyle
     public static boolean drawBorder = StyleConstants.drawBorder;
 
     /**
+     * Whether should paint web-styled background or not.
+     */
+    public static boolean webColoredBackground = true;
+
+    /**
+     * Expanded combobox background color.
+     */
+    public static Color expandedBgColor = new Color ( 223, 220, 213 );
+
+    /**
      * Draw combobox focus.
      */
     public static boolean drawFocus = true;
+
+    /**
+     * Top background color for selected item.
+     */
+    public static Color selectedMenuTopBg = new Color ( 208, 208, 198 );
+
+    /**
+     * Bottom background color for selected item.
+     */
+    public static Color selectedMenuBottomBg = new Color ( 196, 196, 186 );
 
     /**
      * Decoration rounding.
@@ -91,4 +111,9 @@ public final class WebComboBoxStyle
      * Whether should display scroll bar track or not.
      */
     public static boolean scrollBarTrackVisible = false;
+    
+    /**
+     * Whether the popup is allowed to be wider than the combobox or not.
+     */
+    public static boolean widerPopupAllowed = false;
 }

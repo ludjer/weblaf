@@ -15,16 +15,43 @@
  * along with WebLookAndFeel library.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.alee.utils.swing;
+package com.alee.utils.sort;
+
+import java.util.HashSet;
 
 /**
  * @author Mikle Garin
  */
 
-public class DelayFormatException extends IllegalArgumentException
+public class Node<T>
 {
-    public DelayFormatException ( Throwable cause )
+    public final T data;
+    public final HashSet<Edge> inEdges;
+    public final HashSet<Edge> outEdges;
+
+    public Node ( final T data )
     {
-        super ( cause );
+        this.data = data;
+        inEdges = new HashSet<Edge> ();
+        outEdges = new HashSet<Edge> ();
+    }
+
+    public Node addEdge ( final Node node )
+    {
+        final Edge e = new Edge ( this, node );
+        outEdges.add ( e );
+        node.inEdges.add ( e );
+        return this;
+    }
+
+    public T getData ()
+    {
+        return data;
+    }
+
+    @Override
+    public String toString ()
+    {
+        return data != null ? data.toString () : null;
     }
 }

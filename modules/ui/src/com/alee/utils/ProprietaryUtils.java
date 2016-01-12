@@ -49,6 +49,16 @@ public final class ProprietaryUtils
     public static final int HEAVY_WEIGHT_POPUP = 2;
 
     /**
+     * Whether or not window transparency is allowed globally or not.
+     */
+    private static boolean windowTransparencyAllowed = true;
+
+    /**
+     * Whether or not window shape is allowed globally or not.
+     */
+    private static boolean windowShapeAllowed = false;
+
+    /**
      * Allow per-pixel transparent windows usage on Linux systems.
      * This might be an unstable feature so it is disabled by default.
      */
@@ -118,23 +128,89 @@ public final class ProprietaryUtils
     }
 
     /**
-     * Returns whether window transparency is supported on current OS or not.
+     * Returns whether window transparency is allowed globally or not.
+     * Whether or not it is allowed depends on the settings and current OS type.
      *
-     * @return true if window transparency is supported on current OS; false otherwise
+     * @return true if window transparency is allowed globally, false otherwise
      */
     public static boolean isWindowTransparencyAllowed ()
     {
         try
         {
-            // Replace when Unix-systems will have proper support for transparency
-            // com.sun.awt.AWTUtilities.isTranslucencySupported ( com.sun.awt.AWTUtilities.Translucency.PERPIXEL_TRANSPARENT )
-            return SystemUtils.isWindows () || SystemUtils.isMac () || SystemUtils.isSolaris () ||
-                    SystemUtils.isUnix () && allowLinuxTransparency;
+            if ( windowTransparencyAllowed )
+            {
+                // Replace when Unix-systems will have proper support for transparency
+                // Also on Windows systems fonts of all components on transparent windows is not the same, which becomes a real issue sometimes
+                final Class au = ReflectUtils.getClass ( "com.sun.awt.AWTUtilities" );
+                final Class t = ReflectUtils.getInnerClass ( au, "Translucency" );
+                final Object ppt = ReflectUtils.getStaticFieldValue ( t, "PERPIXEL_TRANSPARENT" );
+                final Boolean wts = ReflectUtils.callStaticMethod ( au, "isWindowTranslucencySupported" );
+                final Boolean tc = ReflectUtils.callStaticMethod ( au, "isTranslucencyCapable", SystemUtils.getGraphicsConfiguration () );
+                final Boolean ppts = ReflectUtils.callStaticMethod ( au, "isTranslucencySupported", ppt );
+                return wts && tc && ppts && ( SystemUtils.isWindows () || SystemUtils.isMac () || SystemUtils.isSolaris () ||
+                        SystemUtils.isUnix () && allowLinuxTransparency );
+            }
+            else
+            {
+                return false;
+            }
         }
         catch ( final Throwable e )
         {
-            return false;
+            return SystemUtils.isWindows () || SystemUtils.isMac () || SystemUtils.isSolaris () ||
+                    SystemUtils.isUnix () && allowLinuxTransparency;
         }
+    }
+
+    /**
+     * Sets whether window transparency is allowed globally or not.
+     *
+     * @param allowed whether window transparency is allowed globally or not
+     */
+    public static void setWindowTransparencyAllowed ( final boolean allowed )
+    {
+        windowTransparencyAllowed = allowed;
+    }
+
+    /**
+     * Returns whether window shape is allowed globally or not.
+     * Whether or not it is allowed depends on the settings and current OS type.
+     *
+     * @return true if window shape is allowed globally, false otherwise
+     */
+    public static boolean isWindowShapeAllowed ()
+    {
+        try
+        {
+            if ( windowShapeAllowed )
+            {
+                // TODO: move to Java 7 API
+                final Class au = ReflectUtils.getClass ( "com.sun.awt.AWTUtilities" );
+                final Class t = ReflectUtils.getInnerClass ( au, "Translucency" );
+                final Object ppt = ReflectUtils.getStaticFieldValue ( t, "PERPIXEL_TRANSPARENT" );
+                final Boolean wts = ReflectUtils.callStaticMethod ( au, "isWindowShapingSupported" );
+                final Boolean ppts = ReflectUtils.callStaticMethod ( au, "isTranslucencySupported", ppt );
+                return wts && ppts;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        catch ( final Throwable e )
+        {
+            return windowShapeAllowed;
+        }
+    }
+
+    /**
+     * Sets whether window shape is allowed globally or not.
+     *
+     * @param allowed whether window shape is allowed globally or not
+     */
+    public static void setWindowShapeAllowed ( final boolean allowed )
+    {
+        windowShapeAllowed = allowed;
     }
 
     /**
@@ -311,6 +387,73 @@ public final class ProprietaryUtils
             }
         }
         return 1f;
+    }
+
+    /**
+     * Sets window shape if that option is supported by the underlying system.
+     *
+     * @param window  window to process
+     * @param shape new window shape
+     */
+    public static void setWindowShape ( final Window window, final Shape shape )
+    {
+        if ( window != null && isWindowShapeAllowed () )
+        {
+            try
+            {
+                if ( SystemUtils.isJava7orAbove () )
+                {
+                    // For Java 7 and later this will work just fine
+                    ReflectUtils.callMethod ( window, "setShape", shape );
+                }
+                else
+                {
+                    // Workaround to allow this method usage on all possible Java versions
+                    ReflectUtils.callStaticMethod ( "com.sun.awt.AWTUtilities", "setWindowShape", window, shape );
+                }
+            }
+            catch ( final Throwable e )
+            {
+                // Ignore any exceptions this native feature might cause
+                // Still, should inform that such actions cause an exception on the underlying system
+                Log.error ( ProprietaryUtils.class, e );
+            }
+        }
+    }
+
+    /**
+     * Returns window shape.
+     *
+     * @param window window to process
+     * @return window shape
+     */
+    public static Shape getWindowShape ( final Window window )
+    {
+        if ( window != null && isWindowShapeAllowed () )
+        {
+            try
+            {
+                final Shape shape;
+                if ( SystemUtils.isJava7orAbove () )
+                {
+                    // For Java 7 and later this will work just fine
+                    shape = ReflectUtils.callMethod ( window, "getShape" );
+                }
+                else
+                {
+                    // Workaround to allow this method usage on all possible Java versions
+                    shape = ReflectUtils.callStaticMethod ( "com.sun.awt.AWTUtilities", "getWindowShape", window );
+                }
+                return shape;
+            }
+            catch ( final Throwable e )
+            {
+                // Ignore any exceptions this native feature might cause
+                // Still, should inform that such actions cause an exception on the underlying system
+                Log.error ( ProprietaryUtils.class, e );
+            }
+        }
+        return null;
     }
 
     /**

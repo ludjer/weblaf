@@ -22,9 +22,11 @@ import com.alee.managers.log.Log;
 import com.alee.managers.plugin.data.*;
 import com.alee.utils.*;
 import com.alee.utils.compare.Filter;
+import com.alee.utils.sort.GraphDataProvider;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import java.awt.*;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
@@ -33,6 +35,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.*;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -47,10 +50,6 @@ import java.util.zip.ZipFile;
 public abstract class PluginManager<T extends Plugin>
 {
     /**
-     * todo 1. PluginManager -> Plugin -> dependencies on other plugins? or not
-     */
-
-    /**
      * Plugins listeners.
      */
     protected List<PluginsListener<T>> listeners = new ArrayList<PluginsListener<T>> ( 1 );
@@ -59,6 +58,12 @@ public abstract class PluginManager<T extends Plugin>
      * Plugin checks lock object.
      */
     protected final Object checkLock = new Object ();
+
+    /**
+     * Related plugin managers list.
+     * These managers are used to check dependencies load state and some other information later on.
+     */
+    protected final List<PluginManager> relatedManagers = new ArrayList<PluginManager> ();
 
     /**
      * Detected plugins list.
@@ -222,6 +227,35 @@ public abstract class PluginManager<T extends Plugin>
     }
 
     /**
+     * Adds plugin manager into related managers list.
+     * These managers are used to check dependencies load state and some other information later on.
+     *
+     * @param manager plugin manager to add into related managers list
+     */
+    public void addRelatedManager ( final PluginManager manager )
+    {
+        if ( !relatedManagers.contains ( manager ) )
+        {
+            relatedManagers.add ( manager );
+        }
+        else
+        {
+            Log.get ().warn ( ReflectUtils.getClassName ( manager.getClass () ) + " is already added into related managers list" );
+        }
+    }
+
+    /**
+     * Removes plugin manager from related managers list.
+     * These managers are used to check dependencies load state and some other information later on.
+     *
+     * @param manager plugin manager to add into related managers list
+     */
+    public void removeRelatedManager ( final PluginManager manager )
+    {
+        relatedManagers.remove ( manager );
+    }
+
+    /**
      * Registers programmatically loaded plugin within this PluginManager.
      * This call will add the specified plugin into available plugins list.
      * It will also create a custom DetectedPlugin data based on provided information.
@@ -230,7 +264,7 @@ public abstract class PluginManager<T extends Plugin>
      */
     public void registerPlugin ( final T plugin )
     {
-        registerPlugin ( plugin, plugin.getPluginInformation (), plugin.getPluginLogo () );
+        registerPlugin ( plugin, plugin.getPluginInformation (), GraphicsEnvironment.isHeadless () ? null : plugin.getPluginLogo () );
     }
 
     /**
@@ -408,8 +442,9 @@ public abstract class PluginManager<T extends Plugin>
     {
         if ( pluginsDirectoryPath != null )
         {
-            Log.info ( this, "Scanning plugins directory" + ( checkRecursively ? " recursively" : "" ) + ": " + pluginsDirectoryPath );
-            return collectPluginsInformationImpl ( new File ( pluginsDirectoryPath ), checkRecursively );
+            collectPluginsInformationImpl ( new File ( pluginsDirectoryPath ), checkRecursively );
+            sortRecentlyDetectedPluginsByDependencies ();
+            return true;
         }
         else
         {
@@ -422,10 +457,11 @@ public abstract class PluginManager<T extends Plugin>
      * Collects information about available plugins.
      *
      * @param dir plugins directory
-     * @return true if operation succeeded, false otherwise
      */
-    protected boolean collectPluginsInformationImpl ( final File dir, final boolean checkRecursively )
+    protected void collectPluginsInformationImpl ( final File dir, final boolean checkRecursively )
     {
+        Log.info ( this, "Scanning plugins directory" + ( checkRecursively ? " recursively" : "" ) + ": " + pluginsDirectoryPath );
+
         // Checking all files
         final File[] files = dir.listFiles ( getFileFilter () );
         if ( files != null )
@@ -448,8 +484,6 @@ public abstract class PluginManager<T extends Plugin>
                 }
             }
         }
-
-        return true;
     }
 
     /**
@@ -464,7 +498,6 @@ public abstract class PluginManager<T extends Plugin>
         final DetectedPlugin<T> plugin = getPluginInformation ( file );
         if ( plugin != null )
         {
-            detectedPlugins.add ( plugin );
             recentlyDetected.add ( plugin );
             Log.info ( this, "Plugin detected: " + plugin );
             return true;
@@ -472,6 +505,115 @@ public abstract class PluginManager<T extends Plugin>
         else
         {
             return false;
+        }
+    }
+
+    /**
+     * Tries to sort recently detected plugins list by known plugin dependencies.
+     * This sorting will have effect only if dependencies are pointing at plugins of the same type.
+     * <p/>
+     * In case you setup dependencies on other type of plugin you will have to manually check whether those are loaded or not.
+     * That can be done by setting plugin filter into this manager and checking dependencies there.
+     */
+    protected void sortRecentlyDetectedPluginsByDependencies ()
+    {
+        if ( recentlyDetected.size () > 1 )
+        {
+            try
+            {
+                Log.info ( this, "Sorting detected plugins according to known dependencies" );
+
+                // Collecting plugins that doesn't have any dependencies or their dependencies are loaded
+                // Also mapping dependencies for quick access later
+                final int s = recentlyDetected.size ();
+                final List<DetectedPlugin<T>> root = new ArrayList<DetectedPlugin<T>> ( s );
+                final Map<String, List<DetectedPlugin<T>>> references = new HashMap<String, List<DetectedPlugin<T>>> ();
+                for ( final DetectedPlugin<T> plugin : recentlyDetected )
+                {
+                    final List<PluginDependency> dependencies = plugin.getInformation ().getDependencies ();
+                    if ( dependencies != null )
+                    {
+                        // Iterating through detected plugin dependencies
+                        boolean dependenciesMet = true;
+                        for ( final PluginDependency dependency : dependencies )
+                        {
+                            // Checking whether or not each dependency is met
+                            boolean met = false;
+                            for ( final T availablePlugin : availablePlugins )
+                            {
+                                if ( dependency.isOptional () || dependency.accept ( availablePlugin ) )
+                                {
+                                    met = true;
+                                }
+                            }
+                            if ( !met )
+                            {
+                                dependenciesMet = false;
+                            }
+
+                            // Mapping dependency references
+                            final String id = dependency.getPluginId ();
+                            List<DetectedPlugin<T>> ref = references.get ( id );
+                            if ( ref == null )
+                            {
+                                ref = new ArrayList<DetectedPlugin<T>> ( 1 );
+                                references.put ( id, ref );
+                            }
+                            ref.add ( plugin );
+                        }
+
+                        // Adding plugin into root plugins list if its dependencies are met
+                        if ( dependenciesMet )
+                        {
+                            root.add ( plugin );
+                        }
+                    }
+                    else
+                    {
+                        // Adding plugin into root plugins list as it doesn't have any dependencies
+                        root.add ( plugin );
+                    }
+                }
+
+                // Creating graph provider for futher topological sorting
+                final GraphDataProvider<DetectedPlugin<T>> graphDataProvider = new GraphDataProvider<DetectedPlugin<T>> ()
+                {
+                    @Override
+                    public List<DetectedPlugin<T>> getRoots ()
+                    {
+                        return root;
+                    }
+
+                    @Override
+                    public List<DetectedPlugin<T>> getChildren ( final DetectedPlugin<T> data )
+                    {
+                        final List<DetectedPlugin<T>> children = references.get ( data.getInformation ().getId () );
+                        return children != null ? children : Collections.EMPTY_LIST;
+                    }
+                };
+
+                // Performing topological sorting
+                // Saving result as new recently detected plugins list
+                final List<DetectedPlugin<T>> sorted = SortUtils.doTopologicalSort ( graphDataProvider );
+
+                // Adding plugins which didn't get into graph into the end
+                // There might be such plugin for example in case it has some side dependencies
+                // It might still be properly initialized, we just don't know anything about its dependencies
+                // Such plugins should be initialized after anything else to increase their chances
+                for ( final DetectedPlugin<T> plugin : recentlyDetected )
+                {
+                    if ( !sorted.contains ( plugin ) )
+                    {
+                        sorted.add ( plugin );
+                    }
+                }
+
+                recentlyDetected = sorted;
+            }
+            catch ( final Throwable e )
+            {
+                Log.warn ( this, "Unable to perform proper dependencies sorting", e );
+            }
         }
     }
 
@@ -636,6 +778,9 @@ public abstract class PluginManager<T extends Plugin>
         // This is required to properly inform about newly loaded plugins later
         recentlyInitialized = new ArrayList<T> ();
 
+        // Adding recently detected into the end of the detected plugins list
+        detectedPlugins.addAll ( recentlyDetected );
+
         // Initializing detected plugins
         final String acceptedPluginType = getAcceptedPluginType ();
         for ( final DetectedPlugin<T> dp : detectedPlugins )
@@ -651,10 +796,14 @@ public abstract class PluginManager<T extends Plugin>
             final String prefix = "[" + FileUtils.getRelativePath ( pluginFile, new File ( pluginsDirectoryPath ) ) + "] [" + info + "] ";
             try
             {
+                // Srating to load plugin now
+                Log.info ( this, prefix + "Initializing plugin..." );
+                dp.setStatus ( PluginStatus.loading );
+
                 // Checking plugin type as we don't want (for example) to load server plugins on client side
                 if ( acceptedPluginType != null && ( info.getType () == null || !info.getType ().equals ( acceptedPluginType ) ) )
                 {
-                    Log.warn ( this, prefix + "Plugin of type \"" + info.getType () + "\" cannot be loaded, " +
+                    Log.error ( this, prefix + "Plugin of type \"" + info.getType () + "\" cannot be loaded, " +
                             "required plugin type is \"" + acceptedPluginType + "\"" );
                     dp.setStatus ( PluginStatus.failed );
                     dp.setFailureCause ( "Wrong type" );
@@ -695,9 +844,41 @@ public abstract class PluginManager<T extends Plugin>
                     continue;
                 }
 
-                // Srating to load plugin now
-                Log.info ( this, prefix + "Initializing plugin..." );
-                dp.setStatus ( PluginStatus.loading );
+                // Checking plugin dependencies
+                final List<PluginDependency> dependencies = dp.getInformation ().getDependencies ();
+                if ( dependencies != null )
+                {
+                    for ( final PluginDependency dependency : dependencies )
+                    {
+                        // Checking whether or not dependency is mandatory and whether or not it is available
+                        final String did = dependency.getPluginId ();
+                        if ( !dependency.isOptional () && !isPluginAvailable ( did ) )
+                        {
+                            // If it is mandatory and not available - check related managers for that dependency
+                            boolean available = false;
+                            for ( final PluginManager relatedManager : relatedManagers )
+                            {
+                                if ( relatedManager.isPluginAvailable ( did ) )
+                                {
+                                    available = true;
+                                    break;
+                                }
+                            }
+                            if ( !available )
+                            {
+                                Log.error ( this, prefix + "Mandatory plugin dependency was not found: " + did );
+                                dp.setStatus ( PluginStatus.failed );
+                                dp.setFailureCause ( "Incomplete" );
+                                dp.setExceptionMessage ( "Mandatory plugin dependency was not found: " + did );
+                                break;
+                            }
+                        }
+                    }
+                    if ( dp.getStatus () == PluginStatus.failed )
+                    {
+                        continue;
+                    }
+                }
 
                 // Collecting plugin and its libraries JAR paths
                 final List<URL> jarPaths = new ArrayList<URL> ( 1 + info.getLibrariesCount () );
@@ -723,8 +904,16 @@ public abstract class PluginManager<T extends Plugin>
                         }
                         else
                         {
-                            Log.warn ( this, prefix + "Unable to locate library: " + library.getFile () );
+                            Log.error ( this, prefix + "Plugin library was not found: " + file.getAbsolutePath () );
+                            dp.setStatus ( PluginStatus.failed );
+                            dp.setFailureCause ( "Incomplete" );
+                            dp.setExceptionMessage ( "Plugin library was not found: " + file.getAbsolutePath () );
+                            break;
                         }
+                    }
+                    if ( dp.getStatus () == PluginStatus.failed )
+                    {
+                        continue;
                     }
                 }
 
@@ -735,6 +924,7 @@ public abstract class PluginManager<T extends Plugin>
                     final ClassLoader classLoader;
                     if ( createNewClassLoader || !( cl instanceof URLClassLoader ) )
                     {
+                        // todo Use single class loader for all plugins within this manager (or all managers?)
                         // Create new class loader
                         classLoader = URLClassLoader.newInstance ( jarPaths.toArray ( new URL[ jarPaths.size () ] ), cl );
                     }
@@ -1017,6 +1207,17 @@ public abstract class PluginManager<T extends Plugin>
     public <P extends T> P getPlugin ( final String pluginId )
     {
         return ( P ) availablePluginsById.get ( pluginId );
+    }
+
+    /**
+     * Returns whether plugin is available or not.
+     *
+     * @param pluginId plugin ID
+     * @return true if plugin is available, false otherwise
+     */
+    public boolean isPluginAvailable ( final String pluginId )
+    {
+        return getPlugin ( pluginId ) != null;
     }
 
     /**

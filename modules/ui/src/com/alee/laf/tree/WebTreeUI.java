@@ -20,6 +20,7 @@ package com.alee.laf.tree;
 import com.alee.extended.tree.WebCheckBoxTree;
 import com.alee.global.StyleConstants;
 import com.alee.laf.WebLookAndFeel;
+import com.alee.managers.tooltip.ToolTipProvider;
 import com.alee.utils.*;
 import com.alee.utils.ninepatch.NinePatchIcon;
 
@@ -38,9 +39,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Enumeration;
+import java.util.*;
 import java.util.List;
 
 /**
@@ -87,6 +86,9 @@ public class WebTreeUI extends BasicTreeUI
     protected Color selectorBorderColor = WebTreeStyle.selectorBorderColor;
     protected int selectorRound = WebTreeStyle.selectorRound;
     protected BasicStroke selectorStroke = WebTreeStyle.selectorStroke;
+    protected boolean webColoredSelection = WebTreeStyle.webColoredSelection;
+    protected Color selectionBorderColor = WebTreeStyle.selectionBorderColor;
+    protected Color selectionBackgroundColor = WebTreeStyle.selectionBackgroundColor;
     protected int dropCellShadeWidth = WebTreeStyle.dropCellShadeWidth;
 
     /**
@@ -115,7 +117,7 @@ public class WebTreeUI extends BasicTreeUI
      * @param c component that will use UI instance
      * @return instance of the WebTreeUI
      */
-    @SuppressWarnings ("UnusedParameters")
+    @SuppressWarnings ( "UnusedParameters" )
     public static ComponentUI createUI ( final JComponent c )
     {
         return new WebTreeUI ();
@@ -142,6 +144,10 @@ public class WebTreeUI extends BasicTreeUI
 
         // Allow each cell to choose its own preferred height
         tree.setRowHeight ( -1 );
+
+        // Modifying default drop mode
+        // USE_SELECTION mode is not preferred since WebLaF provides a better visual drop representation
+        tree.setDropMode ( DropMode.ON );
 
         // Use a moderate amount of visible rows by default
         // BasicTreeUI uses 20 rows by default which is too much
@@ -229,12 +235,11 @@ public class WebTreeUI extends BasicTreeUI
                 // Only left mouse button events
                 if ( SwingUtilities.isLeftMouseButton ( e ) )
                 {
-                    // Check that mouse did not hit actuall tree cell
+                    // Check that mouse did not hit actual tree cell
                     if ( getRowForPoint ( e.getPoint (), false ) == -1 )
                     {
                         if ( isSelectorAvailable () )
                         {
-                            // todo Start DnD on selected row
                             // Avoiding selection start when pressed on tree expand handle
                             final TreePath path = getClosestPathForLocation ( tree, e.getX (), e.getY () );
                             if ( path == null || !isLocationInExpandControl ( path, e.getX (), e.getY () ) &&
@@ -242,8 +247,8 @@ public class WebTreeUI extends BasicTreeUI
                             {
                                 // Avoid starting multiselection if row is selected and drag is possible
                                 final int rowForPath = getRowForPath ( tree, path );
-                                if ( isDragAvailable () && getRowBounds ( rowForPath ).contains ( e.getX (), e.getY () ) &&
-                                        tree.isRowSelected ( rowForPath ) )
+                                if ( isDragAvailable () && rowForPath != -1 &&
+                                        getRowBounds ( rowForPath ).contains ( e.getX (), e.getY () ) && tree.isRowSelected ( rowForPath ) )
                                 {
                                     // Marking row to be dragged
                                     draggablePath = path;
@@ -289,6 +294,10 @@ public class WebTreeUI extends BasicTreeUI
                             }
                         }
                     }
+                    //                    else
+                    //                    {
+                    //                        // todo Start DnD on selected row
+                    //                    }
                 }
             }
 
@@ -429,34 +438,18 @@ public class WebTreeUI extends BasicTreeUI
 
             private void repaintSelector ()
             {
-                //                // Calculating selector pervious and current rects
-                //                final Rectangle sb1 = GeometryUtils.getContainingRect ( selectionStart, selectionPrevEnd );
-                //                final Rectangle sb2 = GeometryUtils.getContainingRect ( selectionStart, selectionEnd );
-                //
-                //                // Repainting final rect
-                //                repaintSelector ( GeometryUtils.getContainingRect ( sb1, sb2 ) );
-
                 // Replaced with full repaint due to strange tree lines painting bug
                 tree.repaint ( tree.getVisibleRect () );
             }
 
-            //            private void repaintSelector ( Rectangle fr )
-            //            {
-            //                //                // Expanding width and height to fully cover the selector
-            //                //                fr.x -= 1;
-            //                //                fr.y -= 1;
-            //                //                fr.width += 2;
-            //                //                fr.height += 2;
-            //                //
-            //                //                // Repainting selector area
-            //                //                tree.repaint ( fr );
-            //
-            //                // Replaced with full repaint due to strange tree lines painting bug
-            //                tree.repaint ();
-            //            }
-
             @Override
             public void mouseEntered ( final MouseEvent e )
+            {
+                updateMouseover ( e );
+            }
+
+            @Override
+            public void mouseMoved ( final MouseEvent e )
             {
                 updateMouseover ( e );
             }
@@ -467,23 +460,14 @@ public class WebTreeUI extends BasicTreeUI
                 clearMouseover ();
             }
 
-            @Override
-            public void mouseMoved ( final MouseEvent e )
-            {
-                updateMouseover ( e );
-            }
-
             private void updateMouseover ( final MouseEvent e )
             {
-                if ( tree.isEnabled () && highlightRolloverNode )
+                if ( tree.isEnabled () )
                 {
                     final int index = getRowForPoint ( e.getPoint () );
                     if ( rolloverRow != index )
                     {
-                        final int oldRollover = rolloverRow;
-                        rolloverRow = index;
-                        updateRow ( index );
-                        updateRow ( oldRollover );
+                        updateRolloverCell ( rolloverRow, index );
                     }
                 }
                 else
@@ -494,9 +478,30 @@ public class WebTreeUI extends BasicTreeUI
 
             private void clearMouseover ()
             {
-                final int oldRollover = rolloverRow;
-                rolloverRow = -1;
-                updateRow ( oldRollover );
+                if ( rolloverRow != -1 )
+                {
+                    updateRolloverCell ( rolloverRow, -1 );
+                }
+            }
+
+            private void updateRolloverCell ( final int oldIndex, final int newIndex )
+            {
+                // Updating rollover row
+                rolloverRow = newIndex;
+
+                // Updating rollover row display
+                if ( highlightRolloverNode )
+                {
+                    updateRow ( oldIndex );
+                    updateRow ( newIndex );
+                }
+
+                // Updating custom WebLaF tooltip display state
+                final ToolTipProvider provider = getToolTipProvider ();
+                if ( provider != null )
+                {
+                    provider.rolloverCellChanged ( tree, oldIndex, 0, newIndex, 0 );
+                }
             }
 
             private void updateRow ( final int row )
@@ -531,6 +536,16 @@ public class WebTreeUI extends BasicTreeUI
         tree.removeMouseMotionListener ( mouseAdapter );
 
         super.uninstallUI ( c );
+    }
+
+    /**
+     * Returns custom WebLaF tooltip provider.
+     *
+     * @return custom WebLaF tooltip provider
+     */
+    protected ToolTipProvider<? extends WebTree> getToolTipProvider ()
+    {
+        return tree != null && tree instanceof WebTree ? ( ( WebTree ) tree ).getToolTipProvider () : null;
     }
 
     /**
@@ -681,7 +696,14 @@ public class WebTreeUI extends BasicTreeUI
      */
     public void setSelectionShadeWidth ( final int shadeWidth )
     {
-        this.selectionShadeWidth = shadeWidth;
+        if ( this.selectionShadeWidth != shadeWidth )
+        {
+            // Saving new selection shade width
+            this.selectionShadeWidth = shadeWidth;
+
+            // Properly updating the whole tree structure since this value might affect renderer's size
+            TreeUtils.updateAllVisibleNodes ( tree );
+        }
     }
 
     /**
@@ -782,6 +804,70 @@ public class WebTreeUI extends BasicTreeUI
     public void setSelectorStroke ( final BasicStroke stroke )
     {
         this.selectorStroke = stroke;
+    }
+
+    /**
+     * Returns whether selection should be web-colored or not.
+     * In case it is not web-colored selectionBackgroundColor value will be used as background color.
+     *
+     * @return true if selection should be web-colored, false otherwise
+     */
+    public boolean isWebColoredSelection ()
+    {
+        return webColoredSelection;
+    }
+
+    /**
+     * Sets whether selection should be web-colored or not.
+     * In case it is not web-colored selectionBackgroundColor value will be used as background color.
+     *
+     * @param webColored whether selection should be web-colored or not
+     */
+    public void setWebColoredSelection ( final boolean webColored )
+    {
+        this.webColoredSelection = webColored;
+    }
+
+    /**
+     * Returns selection border color.
+     *
+     * @return selection border color
+     */
+    public Color getSelectionBorderColor ()
+    {
+        return selectionBorderColor;
+    }
+
+    /**
+     * Sets selection border color.
+     *
+     * @param color selection border color
+     */
+    public void setSelectionBorderColor ( final Color color )
+    {
+        this.selectionBorderColor = color;
+    }
+
+    /**
+     * Returns selection background color.
+     * It is used only when webColoredSelection is set to false.
+     *
+     * @return selection background color
+     */
+    public Color getSelectionBackgroundColor ()
+    {
+        return selectionBackgroundColor;
+    }
+
+    /**
+     * Sets selection background color.
+     * It is used only when webColoredSelection is set to false.
+     *
+     * @param color selection background color
+     */
+    public void setSelectionBackgroundColor ( final Color color )
+    {
+        this.selectionBackgroundColor = color;
     }
 
     /**
@@ -1060,25 +1146,30 @@ public class WebTreeUI extends BasicTreeUI
      */
     protected List<Rectangle> getSelectionRects ()
     {
-        final List<Rectangle> selections = new ArrayList<Rectangle> ();
+        // Return empty selection rects when custom selection painting is disabled
+        if ( selectionStyle == TreeSelectionStyle.none )
+        {
+            return Collections.emptyList ();
+        }
 
         // Checking that selection exists
         final int[] rows = tree.getSelectionRows ();
-        if ( rows == null )
+        if ( rows == null || rows.length == 0 )
         {
-            return selections;
+            return Collections.emptyList ();
         }
 
         // Sorting selected rows
         Arrays.sort ( rows );
 
         // Calculating selection rects
+        final List<Rectangle> selections = new ArrayList<Rectangle> ( tree.getSelectionCount () );
         final Insets insets = tree.getInsets ();
         Rectangle maxRect = null;
         int lastRow = -1;
         for ( final int row : rows )
         {
-            if ( selectionStyle.equals ( TreeSelectionStyle.single ) )
+            if ( selectionStyle == TreeSelectionStyle.single )
             {
                 // Required bounds
                 selections.add ( tree.getRowBounds ( row ) );
@@ -1179,10 +1270,17 @@ public class WebTreeUI extends BasicTreeUI
             final List<Rectangle> selections = getSelectionRects ();
             for ( final Rectangle rect : selections )
             {
+                // Bounds fix
+                rect.x += selectionShadeWidth;
+                rect.y += selectionShadeWidth;
+                rect.width -= selectionShadeWidth * 2 + ( selectionBorderColor != null ? 1 : 0 );
+                rect.height -= selectionShadeWidth * 2 + ( selectionBorderColor != null ? 1 : 0 );
+
+                // Painting selection
                 LafUtils.drawCustomWebBorder ( g2d, tree,
-                        new RoundRectangle2D.Double ( rect.x + selectionShadeWidth, rect.y + selectionShadeWidth,
-                                rect.width - selectionShadeWidth * 2 - 1, rect.height - selectionShadeWidth * 2 - 1, selectionRound * 2,
-                                selectionRound * 2 ), StyleConstants.shadeColor, selectionShadeWidth, true, true );
+                        new RoundRectangle2D.Double ( rect.x, rect.y, rect.width, rect.height, selectionRound * 2, selectionRound * 2 ),
+                        StyleConstants.shadeColor, selectionShadeWidth, true, webColoredSelection, selectionBorderColor,
+                        selectionBorderColor, selectionBackgroundColor );
             }
         }
     }
@@ -1194,20 +1292,24 @@ public class WebTreeUI extends BasicTreeUI
      */
     protected void paintRolloverNodeHighlight ( final Graphics2D g2d )
     {
-        if ( tree.isEnabled () && highlightRolloverNode && rolloverRow != -1 && !tree.isRowSelected ( rolloverRow ) )
+        if ( tree.isEnabled () && highlightRolloverNode && selectionStyle != TreeSelectionStyle.none && rolloverRow != -1 &&
+                !tree.isRowSelected ( rolloverRow ) )
         {
             final Rectangle rect = isFullLineSelection () ? getFullRowBounds ( rolloverRow ) : tree.getRowBounds ( rolloverRow );
             if ( rect != null )
             {
+                // Bounds fix
                 rect.x += selectionShadeWidth;
                 rect.y += selectionShadeWidth;
-                rect.width -= selectionShadeWidth * 2 + 1;
-                rect.height -= selectionShadeWidth * 2 + 1;
+                rect.width -= selectionShadeWidth * 2 + ( selectionBorderColor != null ? 1 : 0 );
+                rect.height -= selectionShadeWidth * 2 + ( selectionBorderColor != null ? 1 : 0 );
 
+                // Painting transparent node selection
                 final Composite old = GraphicsUtils.setupAlphaComposite ( g2d, 0.35f );
                 LafUtils.drawCustomWebBorder ( g2d, tree,
                         new RoundRectangle2D.Double ( rect.x, rect.y, rect.width, rect.height, selectionRound * 2, selectionRound * 2 ),
-                        StyleConstants.shadeColor, selectionShadeWidth, true, true );
+                        StyleConstants.shadeColor, selectionShadeWidth, true, webColoredSelection, selectionBorderColor,
+                        selectionBorderColor, selectionBackgroundColor );
                 GraphicsUtils.restoreComposite ( g2d, old );
             }
         }
@@ -1315,6 +1417,49 @@ public class WebTreeUI extends BasicTreeUI
 
         // Empty out the renderer pane, allowing renderers to be gc'ed.
         rendererPane.removeAll ();
+    }
+
+    /**
+     * Paints the horizontal part of the leg.
+     *
+     * @param g               graphics
+     * @param clipBounds      clip bounds
+     * @param insets          tree insets
+     * @param bounds          tree path bounds
+     * @param path            tree path
+     * @param row             row index
+     * @param isExpanded      whether row is expanded or not
+     * @param hasBeenExpanded whether row has been expanded once before or not
+     * @param isLeaf          whether node is leaf or not
+     */
+    @Override
+    protected void paintHorizontalPartOfLeg ( final Graphics g, final Rectangle clipBounds, final Insets insets, final Rectangle bounds,
+                                              final TreePath path, final int row, final boolean isExpanded, final boolean hasBeenExpanded,
+                                              final boolean isLeaf )
+    {
+        if ( !isPaintLines () )
+        {
+            return;
+        }
+        super.paintHorizontalPartOfLeg ( g, clipBounds, insets, bounds, path, row, isExpanded, hasBeenExpanded, isLeaf );
+    }
+
+    /**
+     * Paints the vertical part of the leg.
+     *
+     * @param g          graphics
+     * @param clipBounds clip bounds
+     * @param insets     tree insets
+     * @param path       tree path
+     */
+    @Override
+    protected void paintVerticalPartOfLeg ( final Graphics g, final Rectangle clipBounds, final Insets insets, final TreePath path )
+    {
+        if ( !isPaintLines () )
+        {
+            return;
+        }
+        super.paintVerticalPartOfLeg ( g, clipBounds, insets, path );
     }
 
     /**

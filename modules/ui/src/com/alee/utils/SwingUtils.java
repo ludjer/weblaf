@@ -48,7 +48,6 @@ import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
 import java.awt.image.BufferedImage;
 import java.lang.ref.SoftReference;
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.List;
 
@@ -57,7 +56,7 @@ import java.util.List;
  *
  * @author Mikle Garin
  */
-public final class SwingUtils
+public final class SwingUtils extends CoreSwingUtils
 {
     /**
      * Client property key that identifies that component can handle enabled state changes.
@@ -767,32 +766,6 @@ public final class SwingUtils
     }
 
     /**
-     * Returns window ancestor for specified component or null if it doesn't exist.
-     *
-     * @param component component to process
-     * @return window ancestor for specified component or null if it doesn't exist
-     */
-    public static Window getWindowAncestor ( final Component component )
-    {
-        if ( component == null )
-        {
-            return null;
-        }
-        if ( component instanceof Window )
-        {
-            return ( Window ) component;
-        }
-        for ( Container p = component.getParent (); p != null; p = p.getParent () )
-        {
-            if ( p instanceof Window )
-            {
-                return ( Window ) p;
-            }
-        }
-        return null;
-    }
-
-    /**
      * Returns root pane for the specified component or null if it doesn't exist.
      *
      * @param component component to look under
@@ -828,6 +801,40 @@ public final class SwingUtils
         {
             return getRootPane ( component.getParent () );
         }
+    }
+
+    /**
+     * Returns first available visible application window.
+     *
+     * @return first available visible application window
+     */
+    public static Window getAvailableWindow ()
+    {
+        final Window activeWindow = SwingUtils.getActiveWindow ();
+        if ( activeWindow != null )
+        {
+            if ( activeWindow instanceof JFrame || activeWindow instanceof JDialog || activeWindow instanceof JWindow )
+            {
+                // todo Ignore notification popup windows
+                return activeWindow;
+            }
+        }
+        final Window[] allWindows = Window.getWindows ();
+        if ( allWindows != null && allWindows.length > 0 )
+        {
+            for ( final Window window : allWindows )
+            {
+                if ( window.isShowing () )
+                {
+                    if ( window instanceof JFrame || window instanceof JDialog || window instanceof JWindow )
+                    {
+                        // todo Ignore notification popup windows
+                        return window;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -2491,6 +2498,10 @@ public final class SwingUtils
         {
             return true;
         }
+        else if ( component1 == null && component2 != null || component1 != null && component2 == null )
+        {
+            return false;
+        }
         else
         {
             if ( component1 instanceof Container )
@@ -2618,24 +2629,6 @@ public final class SwingUtils
      * Will invoke the specified action later in EDT in case it is called from non-EDT thread.
      * Otherwise action will be performed immediately.
      *
-     * @param runnable runnable
-     */
-    public static void invokeLater ( final Runnable runnable )
-    {
-        if ( SwingUtilities.isEventDispatchThread () )
-        {
-            runnable.run ();
-        }
-        else
-        {
-            SwingUtilities.invokeLater ( runnable );
-        }
-    }
-
-    /**
-     * Will invoke the specified action later in EDT in case it is called from non-EDT thread.
-     * Otherwise action will be performed immediately.
-     *
      * @param runnable hotkey runnable
      * @param e        key event
      */
@@ -2655,43 +2648,6 @@ public final class SwingUtils
                     runnable.run ( e );
                 }
             } );
-        }
-    }
-
-    /**
-     * Will invoke the specified action in EDT in case it is called from non-EDT thread.
-     *
-     * @param runnable runnable
-     * @throws InterruptedException
-     * @throws InvocationTargetException
-     */
-    public static void invokeAndWait ( final Runnable runnable ) throws InterruptedException, InvocationTargetException
-    {
-        if ( SwingUtilities.isEventDispatchThread () )
-        {
-            runnable.run ();
-        }
-        else
-        {
-            SwingUtilities.invokeAndWait ( runnable );
-        }
-    }
-
-    /**
-     * Will invoke the specified action in EDT in case it is called from non-EDT thread.
-     * It will also block any exceptions thrown by "invokeAndWait" method.
-     *
-     * @param runnable runnable
-     */
-    public static void invokeAndWaitSafely ( final Runnable runnable )
-    {
-        try
-        {
-            invokeAndWait ( runnable );
-        }
-        catch ( final Throwable e )
-        {
-            //
         }
     }
 
@@ -2745,7 +2701,7 @@ public final class SwingUtils
         final int xSign = hor.getValue () > x ? -1 : 1;
         final int ySign = ver.getValue () > y ? -1 : 1;
 
-        new Thread ( new Runnable ()
+        final Thread scroller1 = new Thread ( new Runnable ()
         {
             @Override
             public void run ()
@@ -2778,8 +2734,10 @@ public final class SwingUtils
                     ThreadUtils.sleepSafely ( 25 );
                 }
             }
-        } ).start ();
-        new Thread ( new Runnable ()
+        } );
+        scroller1.setDaemon ( true );
+
+        final Thread scroller2 = new Thread ( new Runnable ()
         {
             @Override
             public void run ()
@@ -2812,7 +2770,11 @@ public final class SwingUtils
                     ThreadUtils.sleepSafely ( 25 );
                 }
             }
-        } ).start ();
+        } );
+        scroller2.setDaemon ( true );
+
+        scroller1.start ();
+        scroller2.start ();
     }
 
     /**

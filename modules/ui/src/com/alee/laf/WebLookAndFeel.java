@@ -67,7 +67,6 @@ import com.alee.laf.tree.WebTreeUI;
 import com.alee.laf.viewport.WebViewportStyle;
 import com.alee.laf.viewport.WebViewportUI;
 import com.alee.managers.WebLafManagers;
-import com.alee.managers.log.Log;
 import com.alee.utils.*;
 import com.alee.utils.swing.SwingLazyValue;
 
@@ -118,6 +117,7 @@ public class WebLookAndFeel extends BasicLookAndFeel
     public static final String ENABLED_PROPERTY = "enabled";
     public static final String MODEL_PROPERTY = "model";
     public static final String TOOLBAR_FLOATABLE_PROPERTY = "floatable";
+    public static final String TOOLBAR_ORIENTATION_PROPERTY = "orientation";
     public static final String WINDOW_DECORATION_STYLE_PROPERTY = "windowDecorationStyle";
     public static final String WINDOW_RESIZABLE_PROPERTY = "resizable";
     public static final String WINDOW_ICON_PROPERTY = "iconImage";
@@ -541,6 +541,9 @@ public class WebLookAndFeel extends BasicLookAndFeel
         // Mnemonics
         table.put ( "Button.showMnemonics", Boolean.TRUE );
 
+        // Whether focused button should become default in frame or not
+        table.put ( "Button.defaultButtonFollowsFocus", Boolean.FALSE );
+
         // JLabels
         final Color controlText = table.getColor ( "controlText" );
         table.put ( "Label.foreground", controlText );
@@ -859,8 +862,15 @@ public class WebLookAndFeel extends BasicLookAndFeel
                         // Initializing WebLaF managers
                         initializeManagers ();
 
-                        // todo Temporary workaround for JSpinner ENTER update issue when created after JTextField
-                        new JSpinner ();
+                        try
+                        {
+                            // todo Temporary workaround for JSpinner ENTER update issue when created after JTextField [ #118 ]
+                            new JSpinner ();
+                        }
+                        catch ( final Throwable e )
+                        {
+                            // Ignore exceptions caused by this workaround
+                        }
                     }
 
                     // Remove listener in any case
@@ -924,11 +934,9 @@ public class WebLookAndFeel extends BasicLookAndFeel
      */
     public static boolean install ( final boolean updateExistingComponents )
     {
-        try
+        // Installing LookAndFeel
+        if ( LafUtils.setupLookAndFeelSafely ( WebLookAndFeel.class ) )
         {
-            // Installing LookAndFeel
-            UIManager.setLookAndFeel ( new WebLookAndFeel () );
-
             // Updating already created components tree
             if ( updateExistingComponents )
             {
@@ -938,11 +946,8 @@ public class WebLookAndFeel extends BasicLookAndFeel
             // LookAndFeel installed sucessfully
             return true;
         }
-        catch ( final Throwable e )
+        else
         {
-            // Printing exception
-            Log.error ( WebLookAndFeel.class, e );
-
             // LookAndFeel installation failed
             return false;
         }

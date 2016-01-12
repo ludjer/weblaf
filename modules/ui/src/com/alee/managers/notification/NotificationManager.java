@@ -22,13 +22,12 @@ import com.alee.managers.popup.PopupAdapter;
 import com.alee.managers.popup.PopupLayer;
 import com.alee.managers.popup.PopupManager;
 import com.alee.utils.SwingUtils;
+import com.alee.utils.SystemUtils;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
 
 /**
  * This manager allows you to display custom notification popups within the application.
@@ -39,12 +38,12 @@ import java.util.WeakHashMap;
  * @see DisplayType
  */
 
-public class NotificationManager implements SwingConstants
+public final class NotificationManager implements SwingConstants
 {
     /**
      * Notifications display location.
      */
-    protected static int location = SOUTH_EAST;
+    protected static int location = -1;
 
     /**
      * Notifications display type.
@@ -87,9 +86,11 @@ public class NotificationManager implements SwingConstants
     protected static final Map<WebInnerNotification, PopupLayer> notificationPopups = new WeakHashMap<WebInnerNotification, PopupLayer> ();
 
     /**
-     * Special layout for notification windows.
+     * Special layouts for notification windows.
+     * Each layout is cached under according graphics device it is used with.
      */
-    protected static final NotificationsScreenLayout screenLayout = new NotificationsScreenLayout ();
+    protected static final Map<GraphicsDevice, NotificationsScreenLayout> screenLayouts =
+            new HashMap<GraphicsDevice, NotificationsScreenLayout> ( 1 );
 
     /**
      * Cached notification windows.
@@ -103,7 +104,7 @@ public class NotificationManager implements SwingConstants
      */
     public static int getLocation ()
     {
-        return location;
+        return location != -1 ? location : SystemUtils.isWindows () ? SOUTH_EAST : NORTH_EAST;
     }
 
     /**
@@ -285,8 +286,12 @@ public class NotificationManager implements SwingConstants
             }
         }
 
-        // Updating window notifications layout
-        screenLayout.layoutScreen ();
+        // Updating window notification layouts
+        for ( final Map.Entry<GraphicsDevice, NotificationsScreenLayout> entry : screenLayouts.entrySet () )
+        {
+            // Updating device-specific layout
+            entry.getValue ().layoutScreen ();
+        }
     }
 
     /**
@@ -312,7 +317,7 @@ public class NotificationManager implements SwingConstants
      */
     public static WebNotification showNotification ( final String content )
     {
-        return showNotification (null, new WebLabel ( content ), NotificationIcon.information.getIcon () );
+        return showNotification ( null, new WebLabel ( content ), NotificationIcon.information.getIcon () );
     }
 
     /**
@@ -531,6 +536,9 @@ public class NotificationManager implements SwingConstants
      */
     public static WebNotification showNotification ( final Component showFor, final WebNotification notification )
     {
+        // Retrieving screen layout for the specified component
+        final NotificationsScreenLayout layout = getLayout ( showFor );
+
         // Notifications caching
         notificationWindows.put ( notification, SwingUtils.getWindowAncestor ( showFor ) );
         notification.addPopupListener ( new PopupAdapter ()
@@ -539,7 +547,7 @@ public class NotificationManager implements SwingConstants
             public void popupWillBeClosed ()
             {
                 notificationWindows.remove ( notification );
-                screenLayout.removeWindow ( notification.getWindow () );
+                layout.removeWindow ( notification.getWindow () );
                 notification.removePopupListener ( this );
             }
         } );
@@ -548,9 +556,27 @@ public class NotificationManager implements SwingConstants
         notification.showPopup ( showFor, 0, 0 );
 
         // Adding notification into screen layout
-        screenLayout.addWindow ( notification.getWindow () );
+        layout.addWindow ( notification.getWindow () );
 
         return notification;
+    }
+
+    /**
+     * Returns screen layout for the specified component.
+     *
+     * @param showFor component used to determine screen
+     * @return screen layout for the specified component
+     */
+    private static NotificationsScreenLayout getLayout ( final Component showFor )
+    {
+        final Window window = showFor != null && showFor.isShowing () ? SwingUtils.getWindowAncestor ( showFor ) : null;
+        final GraphicsDevice gd = window != null ? window.getGraphicsConfiguration ().getDevice () :
+                GraphicsEnvironment.getLocalGraphicsEnvironment ().getDefaultScreenDevice ();
+        if ( !screenLayouts.containsKey ( gd ) )
+        {
+            screenLayouts.put ( gd, new NotificationsScreenLayout ( gd ) );
+        }
+        return screenLayouts.get ( gd );
     }
 
     /**
@@ -561,7 +587,8 @@ public class NotificationManager implements SwingConstants
      */
     public static WebInnerNotification showInnerNotification ( final String content )
     {
-        return showInnerNotification ( findSuitableParentWindow (), new WebLabel ( content ), NotificationIcon.information.getIcon () );
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), new WebLabel ( content ),
+                NotificationIcon.information.getIcon () );
     }
 
     /**
@@ -573,7 +600,7 @@ public class NotificationManager implements SwingConstants
      */
     public static WebInnerNotification showInnerNotification ( final String content, final Icon icon )
     {
-        return showInnerNotification ( findSuitableParentWindow (), new WebLabel ( content ), icon );
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), new WebLabel ( content ), icon );
     }
 
     /**
@@ -609,7 +636,7 @@ public class NotificationManager implements SwingConstants
      */
     public static WebInnerNotification showInnerNotification ( final Component content )
     {
-        return showInnerNotification ( findSuitableParentWindow (), content, NotificationIcon.information.getIcon () );
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), content, NotificationIcon.information.getIcon () );
     }
 
     /**
@@ -621,7 +648,7 @@ public class NotificationManager implements SwingConstants
      */
     public static WebInnerNotification showInnerNotification ( final Component content, final Icon icon )
     {
-        return showInnerNotification ( findSuitableParentWindow (), content, icon );
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), content, icon );
     }
 
     /**
@@ -661,7 +688,7 @@ public class NotificationManager implements SwingConstants
      */
     public static WebInnerNotification showInnerNotification ( final String content, final NotificationOption... options )
     {
-        return showInnerNotification ( findSuitableParentWindow (), new WebLabel ( content ), NotificationIcon.information.getIcon (),
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), new WebLabel ( content ), NotificationIcon.information.getIcon (),
                 options );
     }
 
@@ -675,7 +702,7 @@ public class NotificationManager implements SwingConstants
      */
     public static WebInnerNotification showInnerNotification ( final String content, final Icon icon, final NotificationOption... options )
     {
-        return showInnerNotification ( findSuitableParentWindow (), new WebLabel ( content ), icon, options );
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), new WebLabel ( content ), icon, options );
     }
 
     /**
@@ -716,7 +743,7 @@ public class NotificationManager implements SwingConstants
      */
     public static WebInnerNotification showInnerNotification ( final Component content, final NotificationOption... options )
     {
-        return showInnerNotification ( findSuitableParentWindow (), content, NotificationIcon.information.getIcon (), options );
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), content, NotificationIcon.information.getIcon (), options );
     }
 
     /**
@@ -730,7 +757,7 @@ public class NotificationManager implements SwingConstants
     public static WebInnerNotification showInnerNotification ( final Component content, final Icon icon,
                                                                final NotificationOption... options )
     {
-        return showInnerNotification ( findSuitableParentWindow (), content, icon, options );
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), content, icon, options );
     }
 
     /**
@@ -773,7 +800,7 @@ public class NotificationManager implements SwingConstants
      */
     public static WebInnerNotification showInnerNotification ( final WebInnerNotification notification )
     {
-        return showInnerNotification ( findSuitableParentWindow (), notification );
+        return showInnerNotification ( SwingUtils.getAvailableWindow (), notification );
     }
 
     /**
@@ -814,41 +841,5 @@ public class NotificationManager implements SwingConstants
         notification.showPopup ( showFor );
 
         return notification;
-    }
-
-    /**
-     * Returns default window where notification should be displayed.
-     * Make sure non-inner popups do not use this method to get parent window as it might be another popup.
-     *
-     * @return default window where notification should be displayed
-     * @throws RuntimeException in case there is no displayed windows in this application
-     */
-    protected static Window findSuitableParentWindow ()
-    {
-        final Window activeWindow = SwingUtils.getActiveWindow ();
-        if ( activeWindow != null )
-        {
-            if ( activeWindow instanceof JFrame || activeWindow instanceof JDialog || activeWindow instanceof JWindow )
-            {
-                // todo Ignore notification popup windows
-                return activeWindow;
-            }
-        }
-        final Window[] allWindows = Window.getWindows ();
-        if ( allWindows != null && allWindows.length > 0 )
-        {
-            for ( final Window window : allWindows )
-            {
-                if ( window.isShowing () )
-                {
-                    if ( window instanceof JFrame || window instanceof JDialog || window instanceof JWindow )
-                    {
-                        // todo Ignore notification popup windows
-                        return window;
-                    }
-                }
-            }
-        }
-        return null;
     }
 }

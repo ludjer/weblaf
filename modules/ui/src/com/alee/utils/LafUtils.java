@@ -551,6 +551,14 @@ public final class LafUtils
                                        final int round, final boolean fillBackground, final boolean webColored, final Color border,
                                        final Color disabledBorder, final float opacity )
     {
+        return drawWebStyle ( g2d, component, shadeColor, shadeWidth, round, fillBackground, webColored, border, disabledBorder,
+                component.getBackground (), opacity );
+    }
+
+    public static Shape drawWebStyle ( final Graphics2D g2d, final JComponent component, final Color shadeColor, final int shadeWidth,
+                                       final int round, final boolean fillBackground, final boolean webColored, final Color border,
+                                       final Color disabledBorder, final Color background, final float opacity )
+    {
         // todo Use simple drawRoundRect e.t.c. methods
         // todo Add new class "ShapeInfo" that will contain a shape data and pass it instead of shapes
 
@@ -577,9 +585,9 @@ public final class LafUtils
         if ( fillBackground )
         {
             // Setup either cached gradient paint or single color paint
-            g2d.setPaint ( webColored ? getWebGradientPaint ( 0, shadeWidth, 0, component.getHeight () - shadeWidth ) :
-                    component.getBackground () );
+            g2d.setPaint ( webColored ? getWebGradientPaint ( 0, shadeWidth, 0, component.getHeight () - shadeWidth ) : background );
 
+            // Fill background shape
             if ( round > 0 )
             {
                 g2d.fillRoundRect ( shadeWidth, shadeWidth, component.getWidth () - shadeWidth * 2, component.getHeight () - shadeWidth * 2,
@@ -657,6 +665,15 @@ public final class LafUtils
                                              final Color shadeColor, final int shadeWidth, final boolean fillBackground,
                                              final boolean webColored, final Color border, final Color disabledBorder )
     {
+        drawCustomWebBorder ( g2d, component, borderShape, shadeColor, shadeWidth, fillBackground, webColored, border, disabledBorder,
+                component.getBackground () );
+    }
+
+    public static void drawCustomWebBorder ( final Graphics2D g2d, final JComponent component, final Shape borderShape,
+                                             final Color shadeColor, final int shadeWidth, final boolean fillBackground,
+                                             final boolean webColored, final Color border, final Color disabledBorder,
+                                             final Color backgroundColor )
+    {
         final Object aa = GraphicsUtils.setupAntialias ( g2d );
 
         // Outer shadow
@@ -677,7 +694,7 @@ public final class LafUtils
             }
             else
             {
-                g2d.setPaint ( component.getBackground () );
+                g2d.setPaint ( backgroundColor );
                 g2d.fill ( borderShape );
             }
         }
@@ -874,15 +891,13 @@ public final class LafUtils
                         new Ellipse2D.Double ( selection.x - halfButton, selection.y - halfButton, halfButton * 2, halfButton * 2 ) ) );
                 buttonsShape.add ( new Area (
                         new Ellipse2D.Double ( selection.x + selection.width - halfButton, selection.y - halfButton, halfButton * 2,
-                                halfButton * 2 )
-                ) );
+                                halfButton * 2 ) ) );
             }
             if ( drawSideControls )
             {
                 buttonsShape.add ( new Area (
                         new Ellipse2D.Double ( selection.x + selection.width / 2 - halfButton, selection.y - halfButton, halfButton * 2,
-                                halfButton * 2 )
-                ) );
+                                halfButton * 2 ) ) );
             }
         }
 
@@ -891,12 +906,10 @@ public final class LafUtils
         {
             buttonsShape.add ( new Area (
                     new Ellipse2D.Double ( selection.x - halfButton, selection.y + selection.height / 2 - halfButton, halfButton * 2,
-                            halfButton * 2 )
-            ) );
+                            halfButton * 2 ) ) );
             buttonsShape.add ( new Area (
                     new Ellipse2D.Double ( selection.x + selection.width - halfButton, selection.y + selection.height / 2 - halfButton,
-                            halfButton * 2, halfButton * 2 )
-            ) );
+                            halfButton * 2, halfButton * 2 ) ) );
         }
 
         // Bottom
@@ -906,19 +919,16 @@ public final class LafUtils
             {
                 buttonsShape.add ( new Area (
                         new Ellipse2D.Double ( selection.x - halfButton, selection.y + selection.height - halfButton, halfButton * 2,
-                                halfButton * 2 )
-                ) );
+                                halfButton * 2 ) ) );
                 buttonsShape.add ( new Area (
                         new Ellipse2D.Double ( selection.x + selection.width - halfButton, selection.y + selection.height - halfButton,
-                                halfButton * 2, halfButton * 2 )
-                ) );
+                                halfButton * 2, halfButton * 2 ) ) );
             }
             if ( drawSideControls )
             {
                 buttonsShape.add ( new Area (
                         new Ellipse2D.Double ( selection.x + selection.width / 2 - halfButton, selection.y + selection.height - halfButton,
-                                halfButton * 2, halfButton * 2 )
-                ) );
+                                halfButton * 2, halfButton * 2 ) ) );
             }
         }
 
@@ -927,12 +937,10 @@ public final class LafUtils
         {
             final Area selectionShape = new Area (
                     new RoundRectangle2D.Double ( selection.x - halfLine, selection.y - halfLine, selection.width + halfLine * 2,
-                            selection.height + halfLine * 2, 5, 5 )
-            );
+                            selection.height + halfLine * 2, 5, 5 ) );
             selectionShape.subtract ( new Area (
                     new RoundRectangle2D.Double ( selection.x + halfLine, selection.y + halfLine, selection.width - halfLine * 2,
-                            selection.height - halfLine * 2, 3, 3 )
-            ) );
+                            selection.height - halfLine * 2, 3, 3 ) ) );
             buttonsShape.add ( selectionShape );
         }
 
@@ -1523,5 +1531,36 @@ public final class LafUtils
     public static TexturePainter loadTexturePainter ( final ResourceFile resource )
     {
         return new TexturePainter ( XmlUtils.loadImageIcon ( resource ) );
+    }
+
+    /**
+     * Installs specified L&F as current application's L&F.
+     *
+     * @param clazz L&F class
+     * @return true if L&F was installed successfully, false otherwise
+     */
+    public static boolean setupLookAndFeelSafely ( final Class<? extends LookAndFeel> clazz )
+    {
+        return setupLookAndFeelSafely ( clazz.getCanonicalName () );
+    }
+
+    /**
+     * Installs specified L&F as current application's L&F.
+     *
+     * @param className L&F canonical class name
+     * @return true if L&F was installed successfully, false otherwise
+     */
+    public static boolean setupLookAndFeelSafely ( final String className )
+    {
+        try
+        {
+            UIManager.setLookAndFeel ( className );
+            return true;
+        }
+        catch ( final Throwable e )
+        {
+            Log.get ().error ( "Unable to initialize L&F for class name: " + className, e );
+            return false;
+        }
     }
 }

@@ -585,7 +585,7 @@ public class WebDateField extends WebFormattedTextField implements ShapeProvider
     protected void updateCalendarFromDate ( final Date date )
     {
         calendar.removeDateSelectionListener ( dateSelectionListener );
-        calendar.setDate ( date, false );
+        calendar.setDate ( date );
         calendar.addDateSelectionListener ( dateSelectionListener );
     }
 
@@ -788,6 +788,15 @@ public class WebDateField extends WebFormattedTextField implements ShapeProvider
     public Dimension getPreferredSize ()
     {
         return SizeUtils.getPreferredSize ( this, super.getPreferredSize () );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public WebDateField setPreferredSize ( final int width, final int height )
+    {
+        return SizeUtils.setPreferredSize ( this, width, height );
     }
 
     /**

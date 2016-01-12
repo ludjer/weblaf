@@ -359,6 +359,17 @@ public class WebButton extends JButton
         return this;
     }
 
+    public Color getDefaultButtonShadeColor ()
+    {
+        return getWebUI ().getDefaultButtonShadeColor ();
+    }
+
+    public WebButton setDefaultButtonShadeColor ( final Color defaultButtonShadeColor )
+    {
+        getWebUI ().setDefaultButtonShadeColor ( defaultButtonShadeColor );
+        return this;
+    }
+
     public int getLeftRightSpacing ()
     {
         return getWebUI ().getLeftRightSpacing ();
@@ -1309,6 +1320,15 @@ public class WebButton extends JButton
     public Dimension getPreferredSize ()
     {
         return SizeUtils.getPreferredSize ( this, super.getPreferredSize () );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public WebButton setPreferredSize ( final int width, final int height )
+    {
+        return SizeUtils.setPreferredSize ( this, width, height );
     }
 
     /**

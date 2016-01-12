@@ -37,8 +37,6 @@ import com.alee.utils.swing.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -54,11 +52,6 @@ public class WebFrame extends JFrame
      * Whether should close frame on focus loss or not.
      */
     protected boolean closeOnFocusLoss = false;
-
-    /**
-     * Focusable childs that don't force frame to close even if it set to close on focus loss.
-     */
-    protected List<WeakReference<Component>> focusableChilds = new ArrayList<WeakReference<Component>> ();
 
     /**
      * Window focus tracker.
@@ -111,7 +104,7 @@ public class WebFrame extends JFrame
             @Override
             public void focusChanged ( final boolean focused )
             {
-                if ( closeOnFocusLoss && WebFrame.this.isShowing () && !focused && !isChildFocused () )
+                if ( closeOnFocusLoss && WebFrame.this.isShowing () && !focused )
                 {
                     setVisible ( false );
                 }
@@ -141,63 +134,33 @@ public class WebFrame extends JFrame
     }
 
     /**
-     * Returns focusable childs that don't force dialog to close even if it set to close on focus loss.
+     * Returns focusable childs that don't force frame to close even if it set to close on focus loss.
      *
-     * @return focusable childs that don't force dialog to close even if it set to close on focus loss
+     * @return focusable childs that don't force frame to close even if it set to close on focus loss
      */
     public List<Component> getFocusableChilds ()
     {
-        final List<Component> actualFocusableChilds = new ArrayList<Component> ( focusableChilds.size () );
-        for ( final WeakReference<Component> focusableChild : focusableChilds )
-        {
-            final Component component = focusableChild.get ();
-            if ( component != null )
-            {
-                actualFocusableChilds.add ( component );
-            }
-        }
-        return actualFocusableChilds;
+        return focusTracker.getCustomChildren ();
     }
 
     /**
-     * Adds focusable child that won't force dialog to close even if it set to close on focus loss.
+     * Adds focusable child that won't force frame to close even if it set to close on focus loss.
      *
-     * @param child focusable child that won't force dialog to close even if it set to close on focus loss
+     * @param child focusable child that won't force frame to close even if it set to close on focus loss
      */
     public void addFocusableChild ( final Component child )
     {
-        focusableChilds.add ( new WeakReference<Component> ( child ) );
+        focusTracker.addCustomChild ( child );
     }
 
     /**
-     * Removes focusable child that doesn't force dialog to close even if it set to close on focus loss.
+     * Removes focusable child that doesn't force frame to close even if it set to close on focus loss.
      *
-     * @param child focusable child that doesn't force dialog to close even if it set to close on focus loss
+     * @param child focusable child that doesn't force frame to close even if it set to close on focus loss
      */
     public void removeFocusableChild ( final Component child )
     {
-        focusableChilds.remove ( child );
-    }
-
-    /**
-     * Returns whether one of focusable childs is focused or not.
-     *
-     * @return true if one of focusable childs is focused, false otherwise
-     */
-    public boolean isChildFocused ()
-    {
-        for ( final WeakReference<Component> focusableChild : focusableChilds )
-        {
-            final Component component = focusableChild.get ();
-            if ( component != null )
-            {
-                if ( SwingUtils.hasFocusOwner ( component ) )
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
+        focusTracker.removeCustomChild ( child );
     }
 
     public Color getTopBg ()
@@ -433,7 +396,7 @@ public class WebFrame extends JFrame
     @Override
     public void setLanguage ( final String key, final Object... data )
     {
-        LanguageManager.registerComponent ( this, key, data );
+        LanguageManager.registerComponent ( getRootPane (), key, data );
     }
 
     /**
@@ -442,7 +405,7 @@ public class WebFrame extends JFrame
     @Override
     public void updateLanguage ( final Object... data )
     {
-        LanguageManager.updateComponent ( this, data );
+        LanguageManager.updateComponent ( getRootPane (), data );
     }
 
     /**
@@ -451,7 +414,7 @@ public class WebFrame extends JFrame
     @Override
     public void updateLanguage ( final String key, final Object... data )
     {
-        LanguageManager.updateComponent ( this, key, data );
+        LanguageManager.updateComponent ( getRootPane (), key, data );
     }
 
     /**
@@ -460,7 +423,7 @@ public class WebFrame extends JFrame
     @Override
     public void removeLanguage ()
     {
-        LanguageManager.unregisterComponent ( this );
+        LanguageManager.unregisterComponent ( getRootPane () );
     }
 
     /**
@@ -469,7 +432,7 @@ public class WebFrame extends JFrame
     @Override
     public boolean isLanguageSet ()
     {
-        return LanguageManager.isRegisteredComponent ( this );
+        return LanguageManager.isRegisteredComponent ( getRootPane () );
     }
 
     /**
@@ -478,7 +441,7 @@ public class WebFrame extends JFrame
     @Override
     public void setLanguageUpdater ( final LanguageUpdater updater )
     {
-        LanguageManager.registerLanguageUpdater ( this, updater );
+        LanguageManager.registerLanguageUpdater ( getRootPane (), updater );
     }
 
     /**
@@ -487,7 +450,7 @@ public class WebFrame extends JFrame
     @Override
     public void removeLanguageUpdater ()
     {
-        LanguageManager.unregisterLanguageUpdater ( this );
+        LanguageManager.unregisterLanguageUpdater ( getRootPane () );
     }
 
     /**
@@ -531,7 +494,7 @@ public class WebFrame extends JFrame
     @Override
     public void registerSettings ( final String key )
     {
-        SettingsManager.registerComponent ( this, key );
+        SettingsManager.registerComponent ( getRootPane (), key );
     }
 
     /**
@@ -540,7 +503,7 @@ public class WebFrame extends JFrame
     @Override
     public <T extends DefaultValue> void registerSettings ( final String key, final Class<T> defaultValueClass )
     {
-        SettingsManager.registerComponent ( this, key, defaultValueClass );
+        SettingsManager.registerComponent ( getRootPane (), key, defaultValueClass );
     }
 
     /**
@@ -549,7 +512,7 @@ public class WebFrame extends JFrame
     @Override
     public void registerSettings ( final String key, final Object defaultValue )
     {
-        SettingsManager.registerComponent ( this, key, defaultValue );
+        SettingsManager.registerComponent ( getRootPane (), key, defaultValue );
     }
 
     /**
@@ -558,7 +521,7 @@ public class WebFrame extends JFrame
     @Override
     public void registerSettings ( final String group, final String key )
     {
-        SettingsManager.registerComponent ( this, group, key );
+        SettingsManager.registerComponent ( getRootPane (), group, key );
     }
 
     /**
@@ -567,7 +530,7 @@ public class WebFrame extends JFrame
     @Override
     public <T extends DefaultValue> void registerSettings ( final String group, final String key, final Class<T> defaultValueClass )
     {
-        SettingsManager.registerComponent ( this, group, key, defaultValueClass );
+        SettingsManager.registerComponent ( getRootPane (), group, key, defaultValueClass );
     }
 
     /**
@@ -576,7 +539,7 @@ public class WebFrame extends JFrame
     @Override
     public void registerSettings ( final String group, final String key, final Object defaultValue )
     {
-        SettingsManager.registerComponent ( this, group, key, defaultValue );
+        SettingsManager.registerComponent ( getRootPane (), group, key, defaultValue );
     }
 
     /**
@@ -585,7 +548,7 @@ public class WebFrame extends JFrame
     @Override
     public void registerSettings ( final String key, final boolean loadInitialSettings, final boolean applySettingsChanges )
     {
-        SettingsManager.registerComponent ( this, key, loadInitialSettings, applySettingsChanges );
+        SettingsManager.registerComponent ( getRootPane (), key, loadInitialSettings, applySettingsChanges );
     }
 
     /**
@@ -595,7 +558,7 @@ public class WebFrame extends JFrame
     public <T extends DefaultValue> void registerSettings ( final String key, final Class<T> defaultValueClass,
                                                             final boolean loadInitialSettings, final boolean applySettingsChanges )
     {
-        SettingsManager.registerComponent ( this, key, defaultValueClass, loadInitialSettings, applySettingsChanges );
+        SettingsManager.registerComponent ( getRootPane (), key, defaultValueClass, loadInitialSettings, applySettingsChanges );
     }
 
     /**
@@ -605,7 +568,7 @@ public class WebFrame extends JFrame
     public void registerSettings ( final String key, final Object defaultValue, final boolean loadInitialSettings,
                                    final boolean applySettingsChanges )
     {
-        SettingsManager.registerComponent ( this, key, defaultValue, loadInitialSettings, applySettingsChanges );
+        SettingsManager.registerComponent ( getRootPane (), key, defaultValue, loadInitialSettings, applySettingsChanges );
     }
 
     /**
@@ -615,7 +578,7 @@ public class WebFrame extends JFrame
     public <T extends DefaultValue> void registerSettings ( final String group, final String key, final Class<T> defaultValueClass,
                                                             final boolean loadInitialSettings, final boolean applySettingsChanges )
     {
-        SettingsManager.registerComponent ( this, group, key, defaultValueClass, loadInitialSettings, applySettingsChanges );
+        SettingsManager.registerComponent ( getRootPane (), group, key, defaultValueClass, loadInitialSettings, applySettingsChanges );
     }
 
     /**
@@ -625,7 +588,7 @@ public class WebFrame extends JFrame
     public void registerSettings ( final String group, final String key, final Object defaultValue, final boolean loadInitialSettings,
                                    final boolean applySettingsChanges )
     {
-        SettingsManager.registerComponent ( this, group, key, defaultValue, loadInitialSettings, applySettingsChanges );
+        SettingsManager.registerComponent ( getRootPane (), group, key, defaultValue, loadInitialSettings, applySettingsChanges );
     }
 
     /**
@@ -634,7 +597,7 @@ public class WebFrame extends JFrame
     @Override
     public void registerSettings ( final SettingsProcessor settingsProcessor )
     {
-        SettingsManager.registerComponent ( this, settingsProcessor );
+        SettingsManager.registerComponent ( getRootPane (), settingsProcessor );
     }
 
     /**
@@ -643,7 +606,7 @@ public class WebFrame extends JFrame
     @Override
     public void unregisterSettings ()
     {
-        SettingsManager.unregisterComponent ( this );
+        SettingsManager.unregisterComponent ( getRootPane () );
     }
 
     /**
@@ -652,7 +615,7 @@ public class WebFrame extends JFrame
     @Override
     public void loadSettings ()
     {
-        SettingsManager.loadComponentSettings ( this );
+        SettingsManager.loadComponentSettings ( getRootPane () );
     }
 
     /**
@@ -661,7 +624,7 @@ public class WebFrame extends JFrame
     @Override
     public void saveSettings ()
     {
-        SettingsManager.saveComponentSettings ( this );
+        SettingsManager.saveComponentSettings ( getRootPane () );
     }
 
     /**

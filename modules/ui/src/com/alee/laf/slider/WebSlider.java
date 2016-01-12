@@ -99,6 +99,16 @@ public class WebSlider extends JSlider
         getWebUI ().setRolloverDarkBorderOnly ( rolloverDarkBorderOnly );
     }
 
+    public boolean isInvertMouseWheelDirection ()
+    {
+        return getWebUI ().isInvertMouseWheelDirection ();
+    }
+
+    public void setInvertMouseWheelDirection ( final boolean invert )
+    {
+        getWebUI ().setInvertMouseWheelDirection ( invert );
+    }
+
     public Color getTrackBgTop ()
     {
         return getWebUI ().getTrackBgTop ();
@@ -157,6 +167,36 @@ public class WebSlider extends JSlider
     public void setDrawProgress ( final boolean drawProgress )
     {
         getWebUI ().setDrawProgress ( drawProgress );
+    }
+
+    public Color getProgressTrackBgTop ()
+    {
+        return getWebUI ().getProgressTrackBgTop ();
+    }
+
+    public void setProgressTrackBgTop ( final Color progressTrackBgTop )
+    {
+        getWebUI ().setProgressTrackBgTop ( progressTrackBgTop );
+    }
+
+    public Color getProgressTrackBgBottom ()
+    {
+        return getWebUI ().getProgressTrackBgBottom ();
+    }
+
+    public void setProgressTrackBgBottom ( final Color progressTrackBgBottom )
+    {
+        getWebUI ().setProgressTrackBgBottom ( progressTrackBgBottom );
+    }
+
+    public Color getProgressBorderColor ()
+    {
+        return getWebUI ().getProgressBorderColor ();
+    }
+
+    public void setProgressBorderColor ( final Color progressBorderColor )
+    {
+        getWebUI ().setProgressBorderColor ( progressBorderColor );
     }
 
     public int getProgressRound ()
@@ -1131,5 +1171,14 @@ public class WebSlider extends JSlider
     public Dimension getPreferredSize ()
     {
         return SizeUtils.getPreferredSize ( this, super.getPreferredSize () );
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public WebSlider setPreferredSize ( final int width, final int height )
+    {
+        return SizeUtils.setPreferredSize ( this, width, height );
     }
 }

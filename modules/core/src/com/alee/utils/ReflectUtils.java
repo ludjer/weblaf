@@ -25,18 +25,12 @@ import com.alee.utils.reflection.JarStructure;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.lang.reflect.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.CodeSource;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -79,6 +73,138 @@ public final class ReflectUtils
     public static void setSafeMethodsLoggingEnabled ( final boolean enabled )
     {
         ReflectUtils.safeMethodsLoggingEnabled = enabled;
+    }
+
+    /**
+     * Returns cloned object instance.
+     * This method will clone fields directly instead of calling clone method on the object.
+     * Object fields will be cloned normally through clone method if they implement Cloneable interface.
+     *
+     * @param object    object to clone
+     * @param arguments class constructor arguments
+     * @param <T>       cloned object type
+     * @return cloned object instance
+     */
+    public static <T> T cloneByFieldsSafely ( final T object, final Object... arguments )
+    {
+        try
+        {
+            return cloneByFields ( object, arguments );
+        }
+        catch ( final Throwable e )
+        {
+            if ( safeMethodsLoggingEnabled )
+            {
+                Log.warn ( "ReflectionUtils method failed: cloneByFieldsSafely", e );
+            }
+            return null;
+        }
+
+    }
+
+    /**
+     * Returns cloned object instance.
+     * This method will clone fields directly instead of calling clone method on the object.
+     * Object fields will be cloned normally through clone method if they implement Cloneable interface.
+     *
+     * @param object    object to clone
+     * @param arguments class constructor arguments
+     * @param <T>       cloned object type
+     * @return cloned object instance
+     * @throws InvocationTargetException
+     * @throws NoSuchMethodException
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     */
+    public static <T> T cloneByFields ( final T object, final Object... arguments )
+            throws InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException
+    {
+        final T copy = ReflectUtils.createInstance ( object.getClass (), arguments );
+        final List<Field> fields = getFields ( object );
+        for ( final Field field : fields )
+        {
+            // Making field accessible
+            // Otherwise final or non-public fields won't allow any operations on them
+            field.setAccessible ( true );
+
+            // Skip transient fields
+            if ( Modifier.isTransient ( field.getModifiers () ) )
+            {
+                continue;
+            }
+
+            // Retrieving original object field value
+            final Object value = field.get ( object );
+
+            // Updating field
+            // todo Try using setters?
+            final Object v;
+            if ( value instanceof Collection )
+            {
+                v = CollectionUtils.cloneOrCopy ( ( Collection ) value );
+            }
+            else if ( value instanceof Cloneable )
+            {
+                v = clone ( ( Cloneable ) value );
+            }
+            else
+            {
+                v = value;
+            }
+            field.set ( copy, v );
+        }
+        return copy;
+    }
+
+    /**
+     * Returns all non-static fields declared in the specified class and all of its superclasses.
+     *
+     * @param object object or class to find declared non-static fields for
+     * @return all non-static fields declared in the specified class and all of its superclasses
+     */
+    public static List<Field> getFields ( final Object object )
+    {
+        return getFields ( object, new ArrayList<String> () );
+    }
+
+    /**
+     * Returns all non-static fields declared in the specified class and all of its superclasses.
+     *
+     * @param object object or class to find declared non-static fields for
+     * @param found  found field names
+     * @return all non-static fields declared in the specified class and all of its superclasses
+     */
+    public static List<Field> getFields ( final Object object, final List<String> found )
+    {
+        if ( object instanceof Class )
+        {
+            // Find all current-level fields
+            final Class clazz = ( Class ) object;
+            final Field[] fields = clazz.getDeclaredFields ();
+            final List<Field> filtered = new ArrayList<Field> ( fields.length );
+            for ( final Field field : fields )
+            {
+                final int modifiers = field.getModifiers ();
+                if ( !found.contains ( field.getName () ) && !Modifier.isStatic ( modifiers ) )
+                {
+                    filtered.add ( field );
+                    found.add ( field.getName () );
+                }
+            }
+
+            // Find all superclass fields
+            final Class superclass = clazz.getSuperclass ();
+            if ( superclass != null )
+            {
+                filtered.addAll ( getFields ( superclass ) );
+            }
+
+            return filtered;
+        }
+        else
+        {
+            return getFields ( object.getClass () );
+        }
     }
 
     /**
@@ -1175,7 +1301,7 @@ public final class ReflectUtils
      */
     public static String getSetterMethodName ( final String field )
     {
-        return "set" + field.substring ( 0, 1 ).toUpperCase () + field.substring ( 1 );
+        return "set" + field.substring ( 0, 1 ).toUpperCase ( Locale.ENGLISH ) + field.substring ( 1 );
     }
 
     /**
@@ -1186,7 +1312,7 @@ public final class ReflectUtils
      */
     public static String getGetterMethodName ( final String field )
     {
-        return "get" + field.substring ( 0, 1 ).toUpperCase () + field.substring ( 1 );
+        return "get" + field.substring ( 0, 1 ).toUpperCase ( Locale.ENGLISH ) + field.substring ( 1 );
     }
 
     /**
@@ -1197,7 +1323,7 @@ public final class ReflectUtils
      */
     public static String getIsGetterMethodName ( final String field )
     {
-        return "is" + field.substring ( 0, 1 ).toUpperCase () + field.substring ( 1 );
+        return "is" + field.substring ( 0, 1 ).toUpperCase ( Locale.ENGLISH ) + field.substring ( 1 );
     }
 
     /**
@@ -1447,6 +1573,45 @@ public final class ReflectUtils
         if ( object == null )
         {
             return null;
+        }
+        return ReflectUtils.callMethodSafely ( object, "clone" );
+    }
+
+    /**
+     * Returns cloned object.
+     *
+     * @param object object to clone
+     * @param <T>    cloned object type
+     * @return cloned object
+     * @throws NoSuchMethodException
+     * @throws IllegalAccessException
+     * @throws InvocationTargetException
+     */
+    public static <T> T cloneObject ( final T object ) throws NoSuchMethodException, IllegalAccessException, InvocationTargetException
+    {
+        if ( object == null )
+        {
+            return null;
+        }
+        return ReflectUtils.callMethod ( object, "clone" );
+    }
+
+    /**
+     * Returns cloned object.
+     *
+     * @param object object to clone
+     * @param <T>    cloned object type
+     * @return cloned object
+     */
+    public static <T> T cloneObjectSafely ( final T object )
+    {
+        if ( object == null )
+        {
+            return null;
+        }
+        else if ( object.getClass ().isPrimitive () )
+        {
+            return object;
         }
         return ReflectUtils.callMethodSafely ( object, "clone" );
     }
